@@ -19,13 +19,14 @@ jobs:
         run: |
           grep -q 'with_id("devnira-local")' upstream/node/src/chain_spec.rs
           grep -q 'with_protocol_id("devnira-local-v1")' upstream/node/src/chain_spec.rs
-      - name: Set up Rust nightly
+      - name: Install upstream pinned Rust toolchain
         run: |
-          rustup toolchain install nightly --profile minimal
-          rustup target add wasm32-unknown-unknown --toolchain nightly
+          cat upstream/rust-toolchain
+          rustup toolchain install 1.93.0 --profile minimal
+          rustup target add wasm32v1-none --toolchain 1.93.0
       - name: Compile patched upstream candidate
         working-directory: upstream
-        run: cargo +nightly build --release -p quantus-node
+        run: cargo +1.93.0 build --release -p quantus-node
       - name: Print candidate chain spec
         run: |
           upstream/target/release/quantus-node build-spec --dev --disable-default-bootnode > devnira-local-candidate.json
