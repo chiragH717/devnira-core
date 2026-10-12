@@ -1,0 +1,29 @@
+name: DEVNIRA reference checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  reference-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Python reference unit tests
+        run: python3 -m unittest discover -s tests -v
+      - name: Rust reference crate tests
+        run: cargo test --manifest-path rust/tokenomics/Cargo.toml --locked
+      - name: Validate genesis proposal invariants
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path('config/genesis-proposal.json').read_text())
+          assert p['name']=='DEVNIRA' and p['symbol']=='DVN'
+          assert p['premine_units']==0 and p['initial_balances']==[]
+          assert p['target_block_seconds']==12
+          assert p['max_supply_units']==10_000_000_000_000_000
+          print('Genesis proposal invariants passed (not a real genesis hash).')
+          PY
