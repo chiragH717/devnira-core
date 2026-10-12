@@ -1,0 +1,22 @@
+name: Quantus upstream build feasibility
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  upstream:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Clone upstream Quantus source
+        run: git clone --depth 1 https://github.com/Quantus-Network/chain.git quantus-upstream
+      - name: Record upstream source revision
+        run: git -C quantus-upstream rev-parse HEAD
+      - name: Install nightly Rust
+        run: |
+          rustup toolchain install nightly --profile minimal
+          rustup target add wasm32-unknown-unknown --toolchain nightly
+      - name: Build upstream node (feasibility only, NOT DEVNIRA)
+        working-directory: quantus-upstream
+        run: cargo +nightly build --release -p quantus-node
