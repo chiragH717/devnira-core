@@ -1,0 +1,21 @@
+{
+  "chain_id": "devnira-mainnet-v1",
+  "name": "DEVNIRA",
+  "symbol": "DVN",
+  "network": "independent",
+  "consensus": "qpow-poseidon2-proposed",
+  "target_block_seconds": 12,
+  "base_units_per_coin": 100000000,
+  "max_supply_units": 10000000000000000,
+  "premine_units": 0,
+  "initial_subsidy_units": 500000000,
+  "subsidy_epoch_blocks": 50000,
+  "reduction_numerator": 399,
+  "reduction_denominator": 400,
+  "minimum_tail_units": 1,
+  "initial_balances": [],
+  "bootnodes": [],
+  "genesis_timestamp_ms": null,
+  "runtime_wasm_hash": null,
+  "genesis_state_root": null
+}
