@@ -24,6 +24,11 @@ jobs:
           cat upstream/rust-toolchain
           rustup toolchain install 1.93.0 --profile minimal
           rustup target add wasm32v1-none --toolchain 1.93.0
+      - name: Install LLVM libclang dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang libclang-dev llvm-dev libssl-dev pkg-config
+          echo "LIBCLANG_PATH=$(llvm-config --libdir)" >> "$GITHUB_ENV"
       - name: Compile patched upstream candidate
         working-directory: upstream
         run: cargo +1.93.0 build --release -p quantus-node
