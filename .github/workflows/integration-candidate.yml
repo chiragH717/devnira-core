@@ -1,0 +1,40 @@
+name: DEVNIRA upstream integration candidate
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout upstream
+        run: git clone --depth 1 https://github.com/Quantus-Network/chain.git upstream
+      - name: Record upstream commit
+        run: git -C upstream rev-parse HEAD | tee upstream-commit.txt
+      - name: Apply isolated DEVNIRA local chain-spec changes
+        run: python3 scripts/prepare_upstream.py upstream
+      - name: Assert isolation identifiers
+        run: |
+          grep -q 'with_id("devnira-local")' upstream/node/src/chain_spec.rs
+          grep -q 'with_protocol_id("devnira-local-v1")' upstream/node/src/chain_spec.rs
+      - name: Set up Rust nightly
+        run: |
+          rustup toolchain install nightly --profile minimal
+          rustup target add wasm32-unknown-unknown --toolchain nightly
+      - name: Compile patched upstream candidate
+        working-directory: upstream
+        run: cargo +nightly build --release -p quantus-node
+      - name: Print candidate chain spec
+        run: |
+          upstream/target/release/quantus-node build-spec --dev --disable-default-bootnode > devnira-local-candidate.json
+          python3 -m json.tool devnira-local-candidate.json >/dev/null
+      - name: Upload chain spec candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: devnira-local-chain-spec-candidate
+          path: |
+            upstream-commit.txt
+            devnira-local-candidate.json
+          if-no-files-found: error
