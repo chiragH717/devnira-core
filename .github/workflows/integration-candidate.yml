@@ -27,8 +27,20 @@ jobs:
       - name: Install LLVM libclang dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang libclang-dev llvm-dev libssl-dev pkg-config
+          sudo apt-get install -y clang libclang-dev llvm-dev libssl-dev pkg-config protobuf-compiler libprotobuf-dev cmake build-essential
           echo "LIBCLANG_PATH=$(llvm-config --libdir)" >> "$GITHUB_ENV"
+      - name: Preflight native build dependencies
+        run: |
+          set -euo pipefail
+          command -v protoc
+          protoc --version
+          command -v clang
+          clang --version | head -n 1
+          test -f "$LIBCLANG_PATH/libclang.so" || ldconfig -p | grep -q 'libclang.so'
+          pkg-config --version
+          cmake --version | head -n 1
+          rustc +1.93.0 --version
+          cargo +1.93.0 --version
       - name: Compile patched upstream candidate
         working-directory: upstream
         run: cargo +1.93.0 build --release -p quantus-node
