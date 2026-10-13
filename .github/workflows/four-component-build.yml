@@ -39,6 +39,23 @@ jobs:
         run: |
           python3 -m unittest discover -s tests -v
           cargo test --manifest-path rust/tokenomics/Cargo.toml
+      - name: Validate single company founder allocation policy
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from spec.genesis_allocations import INSTANT_BUDGET, VESTED_BUDGET
+          p = json.loads(Path('config/genesis-proposal.json').read_text())
+          c = p['company_treasury']
+          assert c['policy'] == 'single_company_controlled_public_account'
+          assert c['public_address'] is None, "A company wallet must not be fabricated"
+          assert c['instant_units'] == INSTANT_BUDGET
+          assert c['locked_units'] == VESTED_BUDGET
+          assert c['monthly_unlock_count'] == 12
+          assert p['mining_allocation_units'] == 90_000_000 * 100_000_000
+          assert p['max_supply_units'] == 100_000_000 * 100_000_000
+          print("PASS: Single-company allocation policy. Production genesis still blocked.")
+          PY
       - name: Checkout exact upstream source
         run: |
           git clone --depth 1 https://github.com/Quantus-Network/chain.git upstream
