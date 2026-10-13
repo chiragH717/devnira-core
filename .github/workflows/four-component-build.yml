@@ -156,22 +156,51 @@ jobs:
           echo 'No NVIDIA or AMD device is attached to this workflow.' >> "$GITHUB_STEP_SUMMARY"
           echo 'Two-node sync, actual GPU PoW proofs, network reorg and miner pool compatibility remain UNTESTED.' >> "$GITHUB_STEP_SUMMARY"
 
-  release-gate:
-    name: Production completeness gate (EXPECTED BLOCK until implemented)
+  candidate-summary:
+    name: Development candidate summary (NOT mainnet approval)
     runs-on: ubuntu-latest
     needs: [zk-proof, runtime-genesis, windows-wallet, gpu-testnet]
     if: always()
     steps:
       - uses: actions/checkout@v4
-      - name: Check candidate jobs
+      - name: Require all four development candidate jobs to pass
         env:
           ZK: ${{ needs.zk-proof.result }}
           RUNTIME: ${{ needs.runtime-genesis.result }}
           WINDOWS: ${{ needs.windows-wallet.result }}
           GPU: ${{ needs.gpu-testnet.result }}
         run: |
-          echo "Candidate results: ZK=$ZK runtime=$RUNTIME Windows=$WINDOWS GPU=$GPU"
-      - name: Block mainnet release without real proofs, wallet and GPU evidence
+          set -euo pipefail
+          echo "Development candidate jobs: ZK=$ZK runtime=$RUNTIME Windows=$WINDOWS GPU=$GPU"
+          test "$ZK" = success
+          test "$RUNTIME" = success
+          test "$WINDOWS" = success
+          test "$GPU" = success
+      - name: Show production blockers without mislabeling successful candidate CI as failed
         run: |
+          set -euo pipefail
           echo '{}' > evidence.json
-          python3 scripts/release_evidence_gate.py evidence.json
+          if python3 scripts/release_evidence_gate.py evidence.json > production-blockers.txt 2>&1; then
+            echo "Unexpected: blank evidence met production gate" >&2
+            exit 1
+          fi
+          cat production-blockers.txt
+          grep -q 'NOT RELEASE READY:' production-blockers.txt
+          {
+            echo "## DEVNIRA development candidate: PASS"
+            echo "The four development jobs passed. This **is not** a mainnet approval."
+            echo
+            echo "## Production: BLOCKED"
+            echo "Actual active V2 proofs, independent 8-decimal genesis, secure Windows signing wallet, and NVIDIA/AMD GPU mining tests are not yet evidenced."
+            echo
+            echo "The production-release workflow remains **fail-closed** and must reject missing evidence."
+            echo
+            echo "### Missing production evidence"
+            sed -n '/^BLOCKED:/p' production-blockers.txt
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload production blocker report
+        uses: actions/upload-artifact@v4
+        with:
+          name: devnira-production-blockers-not-mainnet-ready
+          path: production-blockers.txt
+          if-no-files-found: error
