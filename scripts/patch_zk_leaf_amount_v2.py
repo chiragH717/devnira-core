@@ -55,6 +55,33 @@ mod tests {
         assert!(DVN_NATIVE_MAX < (1u64 << DVN_BITS));
         assert!((1u64 << (DVN_BITS - 1)) < DVN_NATIVE_MAX);
     }
+    /// Actually build a Plonky2 circuit and verify its proof, rather than
+    /// trusting source-only checks. Amounts > supply must fail proving.
+    #[test]
+    fn dvn_v2_amount_constraints_reject_above_supply_in_proof() {
+        use plonky2::{
+            field::types::Field,
+            iop::witness::{PartialWitness, WitnessWrite},
+            plonk::{circuit_builder::CircuitBuilder, circuit_data::CircuitConfig},
+        };
+        use zk_circuits_common::circuit::C;
+
+        let mut builder = CircuitBuilder::<F, D>::new(CircuitConfig::standard_recursion_config());
+        let amount = builder.add_virtual_target();
+        constrain_native_dvn_amount(&mut builder, amount);
+        let data = builder.build::<C>();
+        for good in [0u64, 1, 500_000_000, DVN_NATIVE_MAX] {
+            let mut pw = PartialWitness::new();
+            pw.set_target(amount, F::from_canonical_u64(good)).unwrap();
+            let proof = data.prove(pw).expect("valid DVN amount must prove");
+            data.verify(proof).expect("valid DVN amount must verify");
+        }
+        for bad in [DVN_NATIVE_MAX + 1, (1u64 << DVN_BITS) - 1] {
+            let mut pw = PartialWitness::new();
+            pw.set_target(amount, F::from_canonical_u64(bad)).unwrap();
+            assert!(data.prove(pw).is_err(), "out-of-supply amount proved");
+        }
+    }
 }
 '''
 
