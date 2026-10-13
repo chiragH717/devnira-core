@@ -55,6 +55,21 @@ jobs:
       - name: Compile FRAME mining reward pallet (development candidate)
         working-directory: upstream
         run: cargo +1.93.0 check --locked -p pallet-mining-rewards --lib
-      - name: Verify pallet no-std for runtime WASM
+      # The isolated --no-default-features pallet check pulls host-side
+      # sp-state-machine without std, which is not the supported WASM
+      # compilation path for this upstream workspace. Build the node with
+      # its embedded runtime WASM using upstream's regular feature resolution.
+      - name: Compile patched node and embedded runtime WASM (development candidate)
         working-directory: upstream
-        run: cargo +1.93.0 check --locked -p pallet-mining-rewards --lib --no-default-features --target wasm32v1-none
+        run: cargo +1.93.0 build --locked --release -p quantus-node
+      - name: Smoke-check patched runtime identity and chain spec (development only)
+        run: |
+          set -euo pipefail
+          upstream/target/release/quantus-node build-spec --dev --disable-default-bootnode > dev-reward-candidate.json
+          python3 -m json.tool dev-reward-candidate.json > /dev/null
+      - name: Upload development chain-spec candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: devnira-reward-pallet-development-candidate
+          path: dev-reward-candidate.json
+          if-no-files-found: error
