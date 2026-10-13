@@ -6,7 +6,7 @@
 - `tests/test_genesis_manifest.py` checks February month truncation, totals, deterministic order, absent beneficiary validation and the upstream 64-schedule limit.
 
 ## Non-negotiable runtime requirements
-Quantus `pallet-vesting` implements continuous linear vesting, not discrete month-end cliffs; simply serializing the off-chain manifest does not produce valid on-chain schedule data. A new or adapted FRAME pallet must enforce exact releases and payout safety. At 12 schedules per beneficiary, the current 64 schedule bound supports at most five fully-vested beneficiaries without modifications. Before mainnet, beneficiary public keys and per-beneficiary allocation amounts must be explicitly approved and verified: do not invent addresses.
+Quantus `pallet-vesting` supports a cliff equal to the vesting end, which can enforce discrete month-end lump releases after integration into an actual genesis preset. The manifest is not currently wired into genesis, and payout safety, privilege restrictions and quantum alignment still need tests. At 12 schedules per beneficiary, the current 64 schedule bound supports at most five fully-vested beneficiaries without modifications. Before mainnet, beneficiary public keys and per-beneficiary allocation amounts must be explicitly approved and verified: do not invent addresses.
 
 The on-chain vesting pot's existential deposit and possible genesis treasury/governance endowments must not silently add tokens beyond the **10,000,000 DVN** founding allocation. Verify the entire genesis issuance, not only beneficiary transfers. Audit emergency admin controls such as early schedule termination and retargeting to ensure the public vesting promise is enforceable.
 
