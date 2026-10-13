@@ -1,0 +1,38 @@
+name: DEVNIRA on-chain monthly vesting integration
+on:
+  push:
+    branches: [main]
+    paths:
+      - scripts/test_onchain_vesting.py
+      - spec/vesting.py
+      - tests/test_onchain_vesting_source.py
+      - .github/workflows/vesting-integration.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  vesting-runtime-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run vesting generator reference tests
+        run: python3 -m unittest discover -s tests -p 'test_onchain_vesting_source.py' -v
+      - name: Clone upstream runtime and record commit
+        run: |
+          git clone --depth 1 https://github.com/Quantus-Network/chain.git upstream
+          git -C upstream rev-parse HEAD
+      - name: Inject twelve-month unlock test into real FRAME pallet
+        run: python3 scripts/test_onchain_vesting.py upstream
+      - name: Install upstream Rust and native dependencies
+        run: |
+          rustup toolchain install 1.93.0 --profile minimal
+          sudo apt-get update
+          sudo apt-get install -y clang libclang-dev llvm-dev libssl-dev pkg-config protobuf-compiler libprotobuf-dev cmake build-essential
+          echo "LIBCLANG_PATH=$(llvm-config --libdir)" >> "$GITHUB_ENV"
+      - name: Compile and execute upstream FRAME vesting 12-month integration test
+        working-directory: upstream
+        run: cargo +1.93.0 test --locked -p pallet-vesting --lib dvn_twelve_calendar_month_cliffs_pay_only_when_due -- --exact --nocapture
+      - name: Execute upstream existing cliff and claims tests
+        working-directory: upstream
+        run: cargo +1.93.0 test --locked -p pallet-vesting --lib
