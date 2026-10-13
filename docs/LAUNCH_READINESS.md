@@ -21,3 +21,8 @@ A patched **upstream runtime development candidate** compiled and exposed RPC in
 
 ## Blockers requiring user action later
 Provide beneficiary **public** addresses and allocation split for the 10M DVN allocation. Never provide seed phrases or private keys.
+
+## Confirmed upstream amount-encoding blocker (2026-10-13)
+The upstream runtime uses `UNIT=1_000_000_000_000` (12 decimal places) and the upstream ZK leaf encoding uses `AMOUNT_SCALE_DOWN_FACTOR=10_000_000_000`. The approved DVN unit is `100_000_000` (8 decimals). The current patched development candidate only changes chain-spec *display* decimals, not the runtime or ZK circuit encoding. That candidate is **NOT economically compatible** with 8-decimal DVN.
+
+Run `python3 scripts/audit_amount_encoding.py upstream` as a **fail-closed** gate before calling any compiled candidate a DVN production runtime. The current Quantus baseline is expected to fail. Removing this check is not a fix: runtime unit, proof circuits, fee constants, address and ledger accounting must be migrated and tested consistently. Current wallet UI is read-only and cannot receive, custody or transfer funds.
