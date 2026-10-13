@@ -8,6 +8,9 @@ consensus, valid PoW or the correctness of ZK proofs.
 import argparse
 import json
 import time
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from urllib.request import Request, urlopen
 
 from wallet.network_identity import validate_local_rpc, validate_identity
