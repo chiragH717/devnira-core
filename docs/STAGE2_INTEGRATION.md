@@ -32,3 +32,9 @@ Name DEVNIRA, ticker DVN, 12s target, QPoW/Poseidon2 reference, 100M DVN cap, 0 
 The current Python reference uses large integers. The standalone Rust reference only supports the first two epochs; it intentionally fails for later epochs rather than silently producing a divergent reward. **Do not deploy** until a complete, bounded, cross-validated runtime implementation exists.
 
 No node, network, miner, wallet or public chain is running from this repository.
+
+## One-build FRAME candidate (2026-10-13)
+
+`.github/workflows/stage2-combined-runtime.yml` applies **the reward subsidy/cap patch and immutable calendar-month vesting patch together** in the same upstream checkout. It runs FRAME tests for pending rewards, fee recycling, mining cap, twelve monthly cliffs and genesis-grant protection, then builds the native node and embedded WASM runtime. This prevents a green test in one patch from being mistaken for integrated runtime proof when another patch is missing.
+
+**Scope:** This is a *development runtime candidate only*. It uses the upstream 12-decimal units, original ZK proof/circuit and testnet genesis. Passing CI does not make DVN mainnet. Stage 2 remains open until the 8-decimal proof migration, independent actual genesis, user-approved public beneficiary allocations, synchronized mining testnet and signing wallet are integrated and tested. Current CI result for the combined workflow is not yet confirmed.
