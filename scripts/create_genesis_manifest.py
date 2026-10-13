@@ -8,8 +8,10 @@ This does not construct the chain state or create/manage wallets.
 """
 import argparse
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from spec.genesis_allocations import Beneficiary
 from spec.genesis_manifest import build_manifest
 
