@@ -32,7 +32,7 @@ jobs:
         run: python3 scripts/patch_zk_leaf_amount_v2.py zk-circuits
       - name: Compile actual DVN V2 leaf amount range gadget
         working-directory: zk-circuits
-        run: cargo test -p qp-wormhole-circuit --lib dvn_bound_is_injectively_representable_in_goldilocks -- --nocapture
+        run: cargo test -p qp-wormhole-circuit --lib dvn_ -- --nocapture
       - name: Test modified actual wormhole public-input Rust crate
         working-directory: zk-circuits
         run: cargo test -p qp-wormhole-inputs --lib dvn_v2 -- --nocapture
