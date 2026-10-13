@@ -7,10 +7,10 @@
 - Coin: DEVNIRA (DVN)
 - Independent Layer-1 proof-of-work network; Quantus QPoW / Poseidon2 is the selected technical reference, pending source/license and integration verification.
 - Target block time: 12 seconds.
-- Maximum issuance: 100,000,000 DVN; zero premine.
+- Maximum issuance: 100,000,000 DVN; 10% (10,000,000 DVN) allocated to investors/founders/team and 90% (90,000,000 DVN) reserved for GPU/PoW mining. Allocation recipients, vesting and exact genesis implementation are not yet finalized.
 - Initial subsidy: 5 DVN per block.
 - Every 50,000 blocks: reward multiplied by 399/400, with exact integer-floor computation based on the initial reward.
-- Minimum subsidy: 1 base unit (0.00000001 DVN) until the supply cap, then zero.
+- Minimum subsidy: 1 base unit (0.00000001 DVN) until the 90,000,000 DVN mining allocation is exhausted, then zero.
 - Mining goals: NVIDIA and AMD GPUs, official miner plus verified third-party compatibility.
 - Wallet goals: Windows and Android.
 
