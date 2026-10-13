@@ -44,6 +44,10 @@ jobs:
         run: |
           python3 -m unittest discover -s tests -v
           cargo test --manifest-path rust/tokenomics/Cargo.toml
+      - name: Validate independent DVN genesis funding and vesting constraints
+        run: |
+          python3 -m unittest discover -s tests -p 'test_actual_genesis_audit.py' -v
+          echo "Production genesis: BLOCKED until authenticated company address, actual chain spec and vesting pot ED funding are solved" >> "$GITHUB_STEP_SUMMARY"
       - name: Validate single company founder allocation policy
         run: |
           python3 - <<'PY'
