@@ -32,7 +32,7 @@ jobs:
           echo "LIBCLANG_PATH=$(llvm-config --libdir)" >> "$GITHUB_ENV"
       - name: Compile and execute upstream FRAME vesting 12-month integration test
         working-directory: upstream
-        run: cargo +1.93.0 test --locked -p pallet-vesting --lib dvn_twelve_calendar_month_cliffs_pay_only_when_due -- --exact --nocapture
+        run: cargo +1.93.0 test --locked -p pallet-vesting --lib dvn_twelve_calendar_month_cliffs_pay_only_when_due -- --nocapture
       - name: Execute upstream existing cliff and claims tests
         working-directory: upstream
         run: cargo +1.93.0 test --locked -p pallet-vesting --lib
