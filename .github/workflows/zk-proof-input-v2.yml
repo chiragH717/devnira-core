@@ -1,0 +1,40 @@
+name: DEVNIRA ZK V2 proof input source integration
+on:
+  push:
+    branches: [main]
+    paths:
+      - scripts/patch_zk_proof_inputs_v2.py
+      - tests/test_zk_proof_inputs_v2.py
+      - .github/workflows/zk-proof-input-v2.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  proof-input-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test DVN proof input migration guards
+        run: |
+          python3 -m py_compile scripts/patch_zk_proof_inputs_v2.py
+          python3 -m unittest discover -s tests -p 'test_zk_proof_inputs_v2.py' -v
+      - name: Clone actual upstream ZK proof source
+        run: |
+          git clone --depth 1 https://github.com/Quantus-Network/qp-zk-circuits.git zk-circuits
+          git -C zk-circuits rev-parse HEAD | tee zk-source-revision.txt
+      - name: Apply DVN exact amount V2 input patch
+        run: python3 scripts/patch_zk_proof_inputs_v2.py zk-circuits
+      - name: Test modified actual wormhole public-input Rust crate
+        working-directory: zk-circuits
+        run: cargo test -p qp-wormhole-inputs --lib dvn_v2 -- --nocapture
+      - name: Confirm existing V1 proof fields are deliberately not migrated yet
+        run: |
+          grep -q 'pub input_amount: u32' zk-circuits/wormhole/inputs/src/lib.rs
+          grep -q 'pub mod devnira_v2;' zk-circuits/wormhole/inputs/src/lib.rs
+      - name: Upload exact upstream source revision
+        uses: actions/upload-artifact@v4
+        with:
+          name: devnira-zk-v2-inputs-source-revision
+          path: zk-source-revision.txt
+          if-no-files-found: error
