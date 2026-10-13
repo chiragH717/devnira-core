@@ -5,7 +5,6 @@ The submitted chain spec must have an actual independent chain identity and
 proof of exact genesis issuance, company balances, locked founder schedules.
 Without those fields, fail closed. Never substitute the upstream dev preset.
 """
-from collections import Counter
 
 DVN_UNIT = 100_000_000
 TOTAL_SUPPLY = 100_000_000 * DVN_UNIT
@@ -81,8 +80,12 @@ def audit_candidate(spec: dict, company_address: str, manifest: dict) -> dict:
         raise UnsafeGenesis("real on-chain vesting pot account required")
     if balances_map.get(pot) != GENESIS_LOCKED:
         raise UnsafeGenesis("vested balance is not held in verifiable pot")
-    # Real upstream pallet requires ED buffer (often positive). With a
-    # positive ED, total genesis funding is >10M unless pot ED is drawn from
-    # within the company 10M or counted as an explicitly budgeted expense.
-    # Caller must solve this production accounting nuance, not waive the cap.
+    # The upstream vesting pallet requires a pot existential-deposit buffer.
+    # That buffer would create extra initial issuance if 3M liquid and 7M
+    # fully locked are both preserved. The production team MUST redesign
+    # pot funding/ED accounting before accepting the independent genesis.
+    # This is a deliberately fail-closed rule, not a zero-ED recommendation.
+    ed = manifest.get("vesting_pot_existential_deposit_units")
+    if not isinstance(ed, int) or isinstance(ed, bool) or ed != 0:
+        raise UnsafeGenesis("STOP: vesting pot existential-deposit funding unresolved; do not mint above 10M")
     return {"genesis_issued_units":total_issued,"company_liquid_units":GENESIS_LIQUID,"locked_units":locked}
