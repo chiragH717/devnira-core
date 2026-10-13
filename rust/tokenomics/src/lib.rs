@@ -82,7 +82,7 @@ mod tests {
     #[test] fn fee_recycling_never_consumes_mining_budget() {
         let mut ledger = MiningLedger::default();
         ledger.collect_fees(8_000_000_000).unwrap();
-        assert_eq!(ledger.reserve_block(1), INITIAL_SUBSIDY);
+        assert_eq!(ledger.reserve_block(1), Ok(INITIAL_SUBSIDY));
         ledger.settle_fees(8_000_000_000).unwrap();
         assert_eq!(ledger.minted_subsidy, 0);
         ledger.settle_subsidy(INITIAL_SUBSIDY).unwrap();
