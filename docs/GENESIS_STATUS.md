@@ -18,10 +18,11 @@ Independent chain identifier: `devnira-mainnet-v1`. Name: DEVNIRA; symbol DVN. P
 
 No real genesis block hash can be claimed until an actual runtime is built and genesis storage computed.
 
-## Approved team/investor vesting policy
+## Approved team/investor vesting policy (supersedes earlier two-year cliff)
 
 - 3% of total supply (3,000,000 DVN): immediately unlocked at mainnet genesis.
-- 7% of total supply (7,000,000 DVN): locked for 730 days from mainnet genesis, then unlocked in one cliff (not gradual linear vesting).
+- 7% of total supply (7,000,000 DVN): unlock in 12 equal monthly installments over one year, starting one calendar month after mainnet genesis.
+- Base-unit rounding: first 11 monthly installments each release 583,333.33333333 DVN (58,333,333,333,333 base units); final month releases 583,333.33333337 DVN (58,333,333,333,337 base units). Total exactly 7,000,000 DVN.
 - 90% (90,000,000 DVN): reserved for GPU/PoW mining.
-- Implement an on-chain enforceable lock; documentation or a wallet promise alone is insufficient.
-- Beneficiary addresses and actual genesis timestamp remain pending; no coins have been distributed.
+- Implement enforceable on-chain vesting with calendar-month boundary semantics defined in consensus; no off-chain promises.
+- Beneficiary addresses and genesis timestamp pending. No coins distributed.
