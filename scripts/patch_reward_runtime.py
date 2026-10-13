@@ -6,7 +6,11 @@ genesis and cross-pallet tests before any production use.
 """
 from pathlib import Path
 import argparse
-from generate_emission_table import generate
+try:
+    from scripts.generate_emission_table import generate
+except ModuleNotFoundError:
+    # Supports direct execution: python3 scripts/patch_reward_runtime.py upstream
+    from generate_emission_table import generate
 
 PAYOUT_CODE = """\
 \t\tfn on_finalize(block_number: BlockNumberFor<T>) {
