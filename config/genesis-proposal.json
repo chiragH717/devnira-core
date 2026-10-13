@@ -7,7 +7,7 @@
   "target_block_seconds": 12,
   "base_units_per_coin": 100000000,
   "max_supply_units": 10000000000000000,
-  "premine_units": 0,
+  "premine_units": 1000000000000000,
   "initial_subsidy_units": 500000000,
   "subsidy_epoch_blocks": 50000,
   "reduction_numerator": 399,
@@ -17,5 +17,8 @@
   "bootnodes": [],
   "genesis_timestamp_ms": null,
   "runtime_wasm_hash": null,
-  "genesis_state_root": null
+  "genesis_state_root": null,
+  "mining_allocation_units": 9000000000000000,
+  "team_investor_founder_allocation_units": 1000000000000000,
+  "allocation_status": "approved_policy_pending_beneficiary_addresses_vesting_and_runtime_implementation"
 }
