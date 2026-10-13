@@ -18,3 +18,11 @@ A Python roundtrip is **not** a ZK proof validation. Do not change the productio
 `scripts/patch_zk_amount_v2.py` now adds `devnira_amount.rs` **inside the upstream FRAME `pallet-zk-tree` crate**, exposing an exact `u64` native DVN amount encoder/decoder with explicit native-supply and Goldilocks canonicality checks. `zk-v2-codec.yml` automatically compiles and runs the new Rust tests in the real upstream pallet, plus Python patch regression tests. This is stronger than a disconnected reference crate.
 
 **Critical:** The new module is **inactive** in the actual Poseidon2 leaf hash. It does not change `AMOUNT_SCALE_DOWN_FACTOR`, Wormhole `SCALE_DOWN_FACTOR`, ZK witness/prover/verifier, withdrawals, assets, or the 12-decimal runtime `UNIT`. The workflow explicitly asserts the old leaf hash stays unchanged. Its passing result, if attained, would confirm only isolated V2 codec compilation—not 8-decimal blockchain migration. Production safety gate remains expected to fail until the proof system is migrated end-to-end.
+
+## Cross-layer V1 blocker audit (2026-10-13)
+
+The official upstream chain workspace pins external `qp-wormhole-circuit`, `qp-wormhole-inputs`, `qp-wormhole-prover` and `qp-wormhole-verifier` crates at `4.3.0`. The Poseidon leaf preimage must match this separate proof stack; changing only native `UNIT` or adding a codec module leaves this core system at V1.
+
+`scripts/audit_zk_migration.py` now inspects upstream runtime units/supply, ZK tree leaf truncation, Wormhole quantum, vesting payout constraints and external proof crate dependencies together. The candidate CI tests that **upstream V1 is explicitly rejected**. This is not the production V2 implementation. The current audit intentionally cannot mark a release safe until the proof packages are replaced and the audit evolves to validate an actually linked V2 circuit/prover/verifier implementation.
+
+Before mainnet, fork or otherwise control the published proof-source crates, implement/cross-check exact native-amount field encoding and public input constraints, publish reproducible crate revisions, replace and pin every runtime and wallet dependency, and pass deposit -> V2 proof -> on-chain verify -> withdrawal integration plus malformed proof tests. No existing release candidate satisfies this.
