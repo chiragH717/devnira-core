@@ -3,6 +3,8 @@ from functools import lru_cache
 
 UNIT = 100_000_000
 CAP = 100_000_000 * UNIT
+TEAM_ALLOCATION = 10_000_000 * UNIT
+MINING_CAP = CAP - TEAM_ALLOCATION
 INITIAL_REWARD = 5 * UNIT
 EPOCH_LENGTH = 50_000
 REDUCTION_NUM = 399
@@ -15,6 +17,6 @@ def epoch_reward(epoch: int) -> int:
     return max(1, INITIAL_REWARD * pow(REDUCTION_NUM, epoch) // pow(REDUCTION_DEN, epoch))
 
 def subsidy(height: int, already_mined: int) -> int:
-    if height < 1 or not (0 <= already_mined <= CAP):
+    if height < 1 or not (0 <= already_mined <= MINING_CAP):
         raise ValueError("invalid height or issued supply")
-    return min(epoch_reward((height - 1) // EPOCH_LENGTH), CAP - already_mined)
+    return min(epoch_reward((height - 1) // EPOCH_LENGTH), MINING_CAP - already_mined)
