@@ -1,0 +1,64 @@
+name: DEVNIRA unified integration and release gates
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+
+jobs:
+  reference-tests:
+    name: Economics, genesis and vesting references
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Python tests
+        run: python3 -m unittest discover -s tests -v
+      - name: Check Python sources
+        run: python3 -m compileall -q spec tests scripts wallet
+      - name: Rust emission tests
+        run: cargo test --manifest-path rust/tokenomics/Cargo.toml
+
+  windows-monitor:
+    name: Windows pre-release node monitor (not signing wallet)
+    needs: reference-tests
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify Python source
+        shell: pwsh
+        run: python -m py_compile wallet/devnira_windows.py wallet/devnira_rpc.py
+      - name: Bundle read-only node monitor
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check pyinstaller
+          python -m PyInstaller --onefile --windowed --name DEVNIRA-Node-Monitor wallet/devnira_windows.py
+      - name: Upload Windows diagnostic (NOT wallet)
+        uses: actions/upload-artifact@v4
+        with:
+          name: DEVNIRA-Windows-Node-Monitor-PRE-RELEASE
+          path: dist/DEVNIRA-Node-Monitor.exe
+          if-no-files-found: error
+
+  production-source-gate:
+    name: DVN runtime, ZK, genesis, vesting safety gate
+    needs: reference-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch upstream runtime candidate
+        run: |
+          git clone --depth 1 https://github.com/Quantus-Network/chain.git upstream
+          git -C upstream rev-parse HEAD
+      - name: Apply DEVNIRA development identity patch
+        run: python3 scripts/prepare_upstream.py upstream
+      - name: Require actual eight-decimal ZK and DVN runtime before any release build
+        run: python3 scripts/audit_production_runtime.py upstream
+
+  release-ready:
+    name: Production release readiness
+    needs: [reference-tests, windows-monitor, production-source-gate]
+    runs-on: ubuntu-latest
+    steps:
+      - name: All source gates passed (additional full node and 2-node tests still needed)
+        run: echo "Static gates passed. NOT A MAINNET RELEASE. Compile and test consensus before release."
