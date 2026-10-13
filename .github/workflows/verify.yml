@@ -14,16 +14,22 @@ jobs:
       - name: Python reference unit tests
         run: python3 -m unittest discover -s tests -v
       - name: Rust reference crate tests
-        run: cargo test --manifest-path rust/tokenomics/Cargo.toml --locked
-      - name: Validate genesis proposal invariants
+        run: cargo test --manifest-path rust/tokenomics/Cargo.toml
+      - name: Validate allocation and vesting proposal
         run: |
           python3 - <<'PY'
           import json
           from pathlib import Path
           p=json.loads(Path('config/genesis-proposal.json').read_text())
           assert p['name']=='DEVNIRA' and p['symbol']=='DVN'
-          assert p['premine_units']==0 and p['initial_balances']==[]
           assert p['target_block_seconds']==12
           assert p['max_supply_units']==10_000_000_000_000_000
-          print('Genesis proposal invariants passed (not a real genesis hash).')
+          assert p['premine_units']==1_000_000_000_000_000
+          assert p['mining_allocation_units']==9_000_000_000_000_000
+          v=p['team_investor_founder_vesting']
+          assert v['immediately_unlocked_units']==300_000_000_000_000
+          assert v['vested_units']==700_000_000_000_000
+          assert v['monthly_installment_units']*11+v['final_month_installment_units']==v['vested_units']
+          assert len(v['beneficiary_addresses'])==0 and p['initial_balances']==[]
+          print('Proposal arithmetic passed; actual genesis allocations NOT implemented.')
           PY
