@@ -1,4 +1,5 @@
 import unittest
+from copy import deepcopy
 from datetime import datetime, timezone
 from spec.audit_actual_genesis import audit_candidate, UnsafeGenesis, GENESIS_LOCKED, GENESIS_LIQUID
 from spec.genesis_manifest import build_manifest
@@ -19,7 +20,7 @@ def fixture():
             "bootNodes":[], "genesis":{"runtime":{
                 "balances":{"balances":[[ADDR,GENESIS_LIQUID],[POT,GENESIS_LOCKED]]},
                 "vesting":{"anchorToFirstTimestamp":False,
-                           "schedules":manifest["runtime_vesting_schedules_absolute_ms"]}
+                           "schedules":deepcopy(manifest["runtime_vesting_schedules_absolute_ms"])}
             }}}
     return spec, manifest
 
