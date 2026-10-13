@@ -1,0 +1,42 @@
+name: DEVNIRA Stage 2 immutable genesis vesting
+on:
+  push:
+    branches: [main]
+    paths:
+      - scripts/protect_genesis_vesting.py
+      - scripts/test_genesis_vesting_protection.py
+      - .github/workflows/stage2-genesis-vesting.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  immutable-founder-grants:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check patch syntax
+        run: python3 -m py_compile scripts/protect_genesis_vesting.py scripts/test_genesis_vesting_protection.py
+      - name: Checkout upstream and record revision
+        run: |
+          git clone --depth 1 https://github.com/Quantus-Network/chain.git upstream
+          git -C upstream rev-parse HEAD
+      - name: Protect genesis grants and inject FRAME test
+        run: |
+          python3 scripts/protect_genesis_vesting.py upstream
+          python3 scripts/test_genesis_vesting_protection.py upstream
+      - name: Install build dependencies
+        run: |
+          rustup toolchain install 1.93.0 --profile minimal
+          sudo apt-get update
+          sudo apt-get install -y clang libclang-dev llvm-dev libssl-dev pkg-config protobuf-compiler libprotobuf-dev cmake build-essential
+          echo "LIBCLANG_PATH=$(llvm-config --libdir)" >> "$GITHUB_ENV"
+      - name: Verify immutability test is discovered
+        working-directory: upstream
+        run: |
+          set -euo pipefail
+          cargo +1.93.0 test --locked -p pallet-vesting --lib -- --list | tee /tmp/vesting-list.txt
+          grep -q dvn_genesis_founder_schedule_cannot_be_cancelled_or_retargeted /tmp/vesting-list.txt
+      - name: Run FRAME immutable genesis grant test
+        working-directory: upstream
+        run: cargo +1.93.0 test --locked -p pallet-vesting --lib dvn_genesis_founder_schedule_cannot_be_cancelled_or_retargeted -- --nocapture
