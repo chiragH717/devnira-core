@@ -1,6 +1,10 @@
 [package]
 name = "devnira-tokenomics"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license = "MIT"
-description = "DEVNIRA deterministic block subsidy reference; not yet integrated into runtime"
+description = "DEVNIRA exact integer subsidy reference; runtime integration pending"
+
+[dependencies]
+num-bigint = "0.4"
+num-traits = "0.2"
