@@ -17,3 +17,11 @@ Independent chain identifier: `devnira-mainnet-v1`. Name: DEVNIRA; symbol DVN. P
 - Run integration and security tests before a public launch.
 
 No real genesis block hash can be claimed until an actual runtime is built and genesis storage computed.
+
+## Approved team/investor vesting policy
+
+- 3% of total supply (3,000,000 DVN): immediately unlocked at mainnet genesis.
+- 7% of total supply (7,000,000 DVN): locked for 730 days from mainnet genesis, then unlocked in one cliff (not gradual linear vesting).
+- 90% (90,000,000 DVN): reserved for GPU/PoW mining.
+- Implement an on-chain enforceable lock; documentation or a wallet promise alone is insufficient.
+- Beneficiary addresses and actual genesis timestamp remain pending; no coins have been distributed.
