@@ -24,7 +24,22 @@ def patch(root: Path):
     # Preserve entry-point function name, so upstream CLI can still call it.
     source = source[:start] + dev + source[end:]
     path.write_text(source)
-    print("Patched local dev chain-spec metadata and network identity.")
+    # Distinct runtime identity and network address prefix, compiled into WASM.
+    runtime = root / "runtime/src/lib.rs"
+    runtime_src = runtime.read_text()
+    for old in ['Cow::Borrowed("quantus-runtime")', 'pub const MAX_SUPPLY: Balance = 21_000_000 * UNIT;']:
+        if old not in runtime_src:
+            raise RuntimeError(f"Upstream runtime changed: {old}")
+    runtime_src = runtime_src.replace('Cow::Borrowed("quantus-runtime")', 'Cow::Borrowed("devnira-runtime")')
+    # Keep upstream base-unit and quantum until ZK-tree compatibility is audited.
+    # This is a provisional candidate, not final DVN supply integration.
+    runtime.write_text(runtime_src)
+    configs = root / "runtime/src/configs/mod.rs"
+    configs_src = configs.read_text()
+    if 'pub const SS58Prefix: u8 = 189;' not in configs_src:
+        raise RuntimeError("Upstream SS58 prefix changed")
+    configs.write_text(configs_src.replace('pub const SS58Prefix: u8 = 189;', 'pub const SS58Prefix: u8 = 190;'))
+    print("Patched local dev chain-spec metadata, runtime identity and SS58 prefix.")
     print("WARNING: Upstream development genesis may have premine. NOT mainnet-ready.")
 
 if __name__ == "__main__":
