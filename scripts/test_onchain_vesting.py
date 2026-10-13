@@ -7,6 +7,8 @@ mainnet allocation. Does not modify production pallet behavior or genesis.
 import argparse
 from datetime import datetime, timezone
 from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from spec.vesting import add_calendar_months
 
 START = datetime(2027, 1, 31, 12, tzinfo=timezone.utc)
@@ -23,6 +25,7 @@ def test_source() -> str:
 #[test]
 fn dvn_twelve_calendar_month_cliffs_pay_only_when_due() {{
     use crate::mock::*;
+    use crate::Schedules;
     use frame_support::{{assert_noop, assert_ok}};
     const START_MS: u64 = {start_ms};
     const MONTHS: [u64; 12] = [{dates_text}];
