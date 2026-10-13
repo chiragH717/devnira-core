@@ -57,3 +57,11 @@ python3 scripts/test_two_node_rpc.py \
 The sample is a placeholder; it is not a real chain hash. The smoke harness does **not** verify NVIDIA/AMD proof generation or QPoW validity and must never satisfy those release-evidence fields by itself.
 
 **State:** Both files and workflow updates are committed, but the new combined CI run outcome was not established in this change. Independent Genesis, actual ZK circuit migration, wallet signing, GPU hardware tests and security review still block production.
+
+## CI status presentation corrected after build #2
+
+Build #2 showed all **four candidate jobs green** while the workflow as a whole was red solely because the last job deliberately ran `scripts/release_evidence_gate.py` against an empty JSON object. This did **not** indicate a compilation failure. The workflow now has `candidate-summary`: it **fails** when any of the four candidate jobs failed or were skipped, but runs the release-evidence script as an **informational audit** when the production requirements are absent. It uploads `production-blockers.txt` and prints **Production: BLOCKED** in the GitHub job summary. The standalone `production-build.yml` production-source gate still fails closed if the actual chain is incomplete.
+
+This does not upgrade the project's mainnet status. A green four-component development workflow only means four development jobs and their defined tests passed. It does not certify active ZK proof integration, secure custody or physical GPU mining. A regression test in `tests/test_four_component_ci_status.py` protects this distinction.
+
+**Verification note:** The updated workflow is committed; the next workflow run is needed to confirm GitHub Actions execution. Do not rerun unchanged #2; it exercised the old workflow revision.
