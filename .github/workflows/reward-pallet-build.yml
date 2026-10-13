@@ -1,0 +1,60 @@
+name: DEVNIRA reward pallet compile candidate
+on:
+  push:
+    branches: [main]
+    paths:
+      - scripts/patch_reward_runtime.py
+      - scripts/generate_emission_table.py
+      - .github/workflows/reward-pallet-build.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  reward-pallet-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate patch and table Python syntax
+        run: python3 -m py_compile scripts/patch_reward_runtime.py scripts/generate_emission_table.py
+      - name: Generate exact reward schedule and verify against Python consensus reference
+        run: |
+          python3 scripts/generate_emission_table.py --output /tmp/devnira_epoch_rewards.rs
+          python3 - <<'PY'
+          import sys
+          sys.path.insert(0, 'scripts')
+          from generate_emission_table import exact_rewards
+          from spec.tokenomics import epoch_reward
+          vals = list(exact_rewards())
+          assert len(vals) > 1000
+          for idx, value in enumerate(vals):
+              assert value == epoch_reward(idx), (idx, value)
+          assert epoch_reward(len(vals)) == 1
+          print(f"PASS: {len(vals)} exact epoch rewards; one-unit tail after table")
+          PY
+      - name: Checkout Quantus upstream at current revision
+        run: |
+          git clone --depth 1 https://github.com/Quantus-Network/chain.git upstream
+          git -C upstream rev-parse HEAD
+      - name: Apply actual DVN FRAME mining reward patch
+        run: python3 scripts/patch_reward_runtime.py upstream
+      - name: Assert mining reward patch removed dynamic formula
+        run: |
+          grep -q 'pub type MinedSubsidy' upstream/pallets/mining-rewards/src/lib.rs
+          grep -q 'pub type PendingSubsidy' upstream/pallets/mining-rewards/src/lib.rs
+          ! grep -q 'let total_reward = remaining_supply' upstream/pallets/mining-rewards/src/lib.rs
+      - name: Install Rust toolchain
+        run: |
+          rustup toolchain install 1.93.0 --profile minimal
+          rustup target add wasm32v1-none --toolchain 1.93.0
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang libclang-dev llvm-dev libssl-dev pkg-config protobuf-compiler libprotobuf-dev cmake build-essential
+          echo "LIBCLANG_PATH=$(llvm-config --libdir)" >> "$GITHUB_ENV"
+      - name: Compile FRAME mining reward pallet (development candidate)
+        working-directory: upstream
+        run: cargo +1.93.0 check --locked -p pallet-mining-rewards --lib
+      - name: Verify pallet no-std for runtime WASM
+        working-directory: upstream
+        run: cargo +1.93.0 check --locked -p pallet-mining-rewards --lib --no-default-features --target wasm32v1-none
