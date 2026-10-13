@@ -1,0 +1,41 @@
+name: DEVNIRA production preflight and build
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  gate-and-compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout upstream source
+        run: git clone --depth 1 https://github.com/Quantus-Network/chain.git upstream
+      - name: Record exact source revision
+        run: git -C upstream rev-parse HEAD
+      - name: Apply DEVNIRA candidate identity patch
+        run: python3 scripts/prepare_upstream.py upstream
+      - name: STOP if runtime economics and ZK amount encoding are not actually integrated
+        run: python3 scripts/audit_production_runtime.py upstream
+      - name: Install pinned Rust toolchain
+        run: |
+          rustup toolchain install 1.93.0 --profile minimal
+          rustup target add wasm32v1-none --toolchain 1.93.0
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang libclang-dev llvm-dev libssl-dev pkg-config protobuf-compiler libprotobuf-dev cmake build-essential
+          echo "LIBCLANG_PATH=$(llvm-config --libdir)" >> "$GITHUB_ENV"
+      - name: Compile native and WASM runtime
+        working-directory: upstream
+        run: cargo +1.93.0 build --release -p quantus-node
+      - name: Validate independent mainnet genesis
+        run: |
+          upstream/target/release/quantus-node build-spec --chain devnira-mainnet --disable-default-bootnode > devnira-mainnet.json
+          python3 -m json.tool devnira-mainnet.json >/dev/null
+      - name: Upload release candidate chain spec
+        uses: actions/upload-artifact@v4
+        with:
+          name: devnira-mainnet-preflight-artifacts
+          path: devnira-mainnet.json
+          if-no-files-found: error
