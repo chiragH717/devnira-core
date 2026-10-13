@@ -20,7 +20,7 @@
   "genesis_state_root": null,
   "mining_allocation_units": 9000000000000000,
   "team_investor_founder_allocation_units": 1000000000000000,
-  "allocation_status": "approved_policy_pending_beneficiary_addresses_vesting_and_runtime_implementation",
+  "allocation_status": "single_company_treasury_approved_public_address_pending_actual_genesis_and_onchain_integration",
   "team_investor_founder_vesting": {
     "total_units": 1000000000000000,
     "immediately_unlocked_units": 300000000000000,
@@ -31,6 +31,16 @@
     "monthly_installment_units": 58333333333333,
     "final_month_installment_units": 58333333333337,
     "beneficiary_addresses": [],
-    "status": "policy_approved_not_implemented"
+    "status": "single_company_treasury_approved_public_address_and_onchain_integration_pending"
+  },
+  "company_treasury": {
+    "policy": "single_company_controlled_public_account",
+    "name": "DEVNIRA company treasury",
+    "public_address": null,
+    "public_address_status": "pending_independent_DVN_wallet_implementation_and_verification",
+    "instant_units": 300000000000000,
+    "locked_units": 700000000000000,
+    "monthly_unlock_count": 12,
+    "allow_private_keys_in_repo": false
   }
 }
