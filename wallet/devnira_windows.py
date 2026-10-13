@@ -6,7 +6,7 @@ import json
 import tkinter as tk
 from tkinter import ttk, messagebox
 from urllib.request import Request, urlopen
-from network_identity import validate_local_rpc
+from network_identity import validate_local_rpc, validate_identity
 
 def rpc(endpoint, method, params=None):
     body = json.dumps({"jsonrpc": "2.0", "id": 1, "method": method, "params": params or []}).encode()
@@ -24,6 +24,7 @@ class DVNMonitor(tk.Tk):
         self.geometry("690x390")
         self.endpoint = tk.StringVar(value="http://127.0.0.1:9944")
         self.status = tk.StringVar(value="Not connected")
+        self.expected_genesis = tk.StringVar(value="")
         self.chain = tk.StringVar(value="—")
         self.genesis = tk.StringVar(value="—")
         self.runtime = tk.StringVar(value="—")
