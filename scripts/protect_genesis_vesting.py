@@ -33,7 +33,7 @@ def patch(root: Path) -> None:
     src = src.replace(
         end_anchor,
         end_anchor + "\n\t\t\tensure!(schedule_id >= ImmutableGenesisScheduleCount::<T>::get(), "
-        'DispatchError::Other("ImmutableGenesisGrant"));',
+        'sp_runtime::DispatchError::Other("ImmutableGenesisGrant"));',
         1,
     )
     retarget_anchor = "\t\t\tensure!(new_beneficiary != Self::pot_account_id(), Error::<T>::InvalidBeneficiary);"
@@ -42,7 +42,7 @@ def patch(root: Path) -> None:
     src = src.replace(
         retarget_anchor,
         "\t\t\tensure!(schedule_id >= ImmutableGenesisScheduleCount::<T>::get(), "
-        'DispatchError::Other("ImmutableGenesisGrant"));\n' + retarget_anchor,
+        'sp_runtime::DispatchError::Other("ImmutableGenesisGrant"));\n' + retarget_anchor,
         1,
     )
     path.write_text(src)
