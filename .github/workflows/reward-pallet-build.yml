@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - scripts/patch_reward_runtime.py
+      - scripts/test_reward_runtime.py
       - scripts/generate_emission_table.py
       - .github/workflows/reward-pallet-build.yml
   workflow_dispatch:
@@ -38,6 +39,12 @@ jobs:
           git -C upstream rev-parse HEAD
       - name: Apply actual DVN FRAME mining reward patch
         run: python3 scripts/patch_reward_runtime.py upstream
+      - name: Add DVN reward consensus integration tests
+        run: python3 scripts/test_reward_runtime.py upstream
+      - name: Assert mocked runtime has DVN MiningCap
+        run: |
+          grep -q 'type MiningCap = MiningCap' upstream/pallets/mining-rewards/src/mock.rs
+          grep -q 'dvn_mining_cap_counts_reserved_and_minted_subsidies' upstream/pallets/mining-rewards/src/tests.rs
       - name: Assert mining reward patch removed dynamic formula
         run: |
           grep -q 'pub type MinedSubsidy' upstream/pallets/mining-rewards/src/lib.rs
@@ -52,6 +59,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y clang libclang-dev llvm-dev libssl-dev pkg-config protobuf-compiler libprotobuf-dev cmake build-essential
           echo "LIBCLANG_PATH=$(llvm-config --libdir)" >> "$GITHUB_ENV"
+      - name: Run DVN real FRAME mining subsidy tests
+        working-directory: upstream
+        run: cargo +1.93.0 test --locked -p pallet-mining-rewards --lib dvn_ -- --nocapture
       - name: Compile FRAME mining reward pallet (development candidate)
         working-directory: upstream
         run: cargo +1.93.0 check --locked -p pallet-mining-rewards --lib
