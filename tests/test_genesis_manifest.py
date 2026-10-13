@@ -19,6 +19,12 @@ class GenesisManifestTests(unittest.TestCase):
         )
         self.assertEqual(unlocks[-1]["amount_units"], VESTED_BUDGET - (VESTED_BUDGET // 12) * 11)
         self.assertFalse(m["production_genesis"])
+        self.assertFalse(m["anchor_to_first_timestamp"])
+        tuples = m["runtime_vesting_schedules_absolute_ms"]
+        self.assertEqual(len(tuples), 12)
+        self.assertEqual(tuples[0][2], tuples[0][3])
+        self.assertEqual(tuples[0][4], unlocks[0]["amount_units"])
+        self.assertLess(tuples[0][1], tuples[0][2])
 
     def test_two_beneficiaries_preserve_splits(self):
         m = build_manifest(self.genesis, [
