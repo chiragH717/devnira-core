@@ -12,3 +12,9 @@ The upstream leaf commits a quantized `u32`, losing precision or range. Proposed
 5. End-to-end roundtrip tests at 1 base unit, 5 DVN miner subsidy, monthly vesting instalments and 100M DVN cap; malicious out-of-range inputs must fail. Validate compatibility and genesis-only migration; never deploy V2 over a V1 network without a complete upgrade plan.
 
 A Python roundtrip is **not** a ZK proof validation. Do not change the production safety gate on the strength of the reference alone.
+
+## FRAME ZK-tree integration prototype — 2026-10-13
+
+`scripts/patch_zk_amount_v2.py` now adds `devnira_amount.rs` **inside the upstream FRAME `pallet-zk-tree` crate**, exposing an exact `u64` native DVN amount encoder/decoder with explicit native-supply and Goldilocks canonicality checks. `zk-v2-codec.yml` automatically compiles and runs the new Rust tests in the real upstream pallet, plus Python patch regression tests. This is stronger than a disconnected reference crate.
+
+**Critical:** The new module is **inactive** in the actual Poseidon2 leaf hash. It does not change `AMOUNT_SCALE_DOWN_FACTOR`, Wormhole `SCALE_DOWN_FACTOR`, ZK witness/prover/verifier, withdrawals, assets, or the 12-decimal runtime `UNIT`. The workflow explicitly asserts the old leaf hash stays unchanged. Its passing result, if attained, would confirm only isolated V2 codec compilation—not 8-decimal blockchain migration. Production safety gate remains expected to fail until the proof system is migrated end-to-end.
