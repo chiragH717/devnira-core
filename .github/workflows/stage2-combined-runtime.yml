@@ -1,0 +1,72 @@
+name: DEVNIRA Stage 2 combined runtime candidate
+on:
+  push:
+    branches: [main]
+    paths:
+      - scripts/patch_reward_runtime.py
+      - scripts/test_reward_runtime.py
+      - scripts/generate_emission_table.py
+      - scripts/protect_genesis_vesting.py
+      - scripts/test_genesis_vesting_protection.py
+      - scripts/test_onchain_vesting.py
+      - .github/workflows/stage2-combined-runtime.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  combined-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Python source and local regression tests
+        run: |
+          python3 -m compileall -q scripts spec tests
+          python3 -m unittest discover -s tests -v
+      - name: Clone upstream and pin revision in log
+        run: |
+          git clone --depth 1 https://github.com/Quantus-Network/chain.git upstream
+          git -C upstream rev-parse HEAD | tee upstream-stage2-revision.txt
+      - name: Patch reward and vesting pallets in the SAME source tree
+        run: |
+          set -euo pipefail
+          python3 scripts/patch_reward_runtime.py upstream
+          python3 scripts/test_reward_runtime.py upstream
+          python3 scripts/protect_genesis_vesting.py upstream
+          python3 scripts/test_genesis_vesting_protection.py upstream
+          python3 scripts/test_onchain_vesting.py upstream
+      - name: Assert real FRAME components are patched
+        run: |
+          set -euo pipefail
+          grep -q 'pub type MinedSubsidy' upstream/pallets/mining-rewards/src/lib.rs
+          grep -q 'pub type PendingSubsidy' upstream/pallets/mining-rewards/src/lib.rs
+          grep -q 'ImmutableGenesisScheduleCount' upstream/pallets/vesting/src/lib.rs
+          grep -q 'dvn_twelve_calendar_month_cliffs_pay_only_when_due' upstream/pallets/vesting/src/tests.rs
+      - name: Install Rust and native dependencies
+        run: |
+          rustup toolchain install 1.93.0 --profile minimal
+          rustup target add wasm32v1-none --toolchain 1.93.0
+          sudo apt-get update
+          sudo apt-get install -y clang libclang-dev llvm-dev libssl-dev pkg-config protobuf-compiler libprotobuf-dev cmake build-essential
+          echo "LIBCLANG_PATH=$(llvm-config --libdir)" >> "$GITHUB_ENV"
+      - name: Run DVN miner subsidy and cap FRAME tests
+        working-directory: upstream
+        run: cargo +1.93.0 test --locked -p pallet-mining-rewards --lib dvn_ -- --nocapture
+      - name: Run DVN monthly and immutable-grant FRAME tests
+        working-directory: upstream
+        run: cargo +1.93.0 test --locked -p pallet-vesting --lib dvn_ -- --nocapture
+      - name: Compile single patched native node and embedded WASM runtime
+        working-directory: upstream
+        run: cargo +1.93.0 build --locked --release -p quantus-node
+      - name: Smoke test development candidate chain spec
+        run: |
+          upstream/target/release/quantus-node build-spec --dev --disable-default-bootnode > stage2-dev-candidate.json
+          python3 -m json.tool stage2-dev-candidate.json >/dev/null
+      - name: Upload testnet-only candidate evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: devnira-stage2-dev-candidate-not-mainnet
+          path: |
+            stage2-dev-candidate.json
+            upstream-stage2-revision.txt
+          if-no-files-found: error
