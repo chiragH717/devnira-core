@@ -43,6 +43,7 @@ class DVNMonitor(tk.Tk):
             messagebox.showerror("Local RPC only", "Connect to a local node using 127.0.0.1 or localhost.")
             return
         try:
+            validate_local_rpc(url)
             chain = rpc(url, "system_chain")
             genesis = rpc(url, "chain_getBlockHash", [0])
             version = rpc(url, "state_getRuntimeVersion")
