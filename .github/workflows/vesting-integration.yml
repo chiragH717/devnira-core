@@ -30,6 +30,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y clang libclang-dev llvm-dev libssl-dev pkg-config protobuf-compiler libprotobuf-dev cmake build-essential
           echo "LIBCLANG_PATH=$(llvm-config --libdir)" >> "$GITHUB_ENV"
+      - name: Verify the DEVNIRA FRAME vesting test is discovered
+        working-directory: upstream
+        run: |
+          set -euo pipefail
+          cargo +1.93.0 test --locked -p pallet-vesting --lib -- --list > vesting-test-list.txt
+          grep -q 'dvn_twelve_calendar_month_cliffs_pay_only_when_due' vesting-test-list.txt
       - name: Compile and execute upstream FRAME vesting 12-month integration test
         working-directory: upstream
         run: cargo +1.93.0 test --locked -p pallet-vesting --lib dvn_twelve_calendar_month_cliffs_pay_only_when_due -- --nocapture
