@@ -24,9 +24,12 @@
   "team_investor_founder_vesting": {
     "total_units": 1000000000000000,
     "immediately_unlocked_units": 300000000000000,
-    "locked_units": 700000000000000,
-    "lock_duration_seconds": 63072000,
-    "unlock_rule": "cliff_after_730_days_from_mainnet_genesis",
+    "vested_units": 700000000000000,
+    "vesting_start": "mainnet_genesis_timestamp",
+    "vesting_duration_months": 12,
+    "vesting_schedule": "12 equal calendar-month installments; first unlock one calendar month after genesis; last installment receives remainder; no early transfer",
+    "monthly_installment_units": 58333333333333,
+    "final_month_installment_units": 58333333333337,
     "beneficiary_addresses": [],
     "status": "policy_approved_not_implemented"
   }
