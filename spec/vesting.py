@@ -21,7 +21,7 @@ def vested_total(genesis: datetime, at: datetime) -> int:
     if at.tzinfo is None or at.utcoffset() is None:
         raise ValueError("timestamp must have timezone")
     months = sum(at >= add_calendar_months(genesis, n) for n in range(1, MONTHS + 1))
-    return TOTAL_VESTED * months // MONTHS
+    return (TOTAL_VESTED // MONTHS) * months if months < MONTHS else TOTAL_VESTED
 
 def locked_total(genesis: datetime, at: datetime) -> int:
     return TOTAL_VESTED - vested_total(genesis, at)
