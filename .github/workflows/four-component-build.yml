@@ -74,6 +74,17 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y clang libclang-dev llvm-dev libssl-dev pkg-config protobuf-compiler libprotobuf-dev cmake build-essential
           echo "LIBCLANG_PATH=$(llvm-config --libdir)" >> "$GITHUB_ENV"
+      - name: Confirm 8-decimal DEVNIRA runtime cannot mix with old ZK proof format
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_patch_dvn_runtime_units.py' -v
+          if python3 scripts/patch_dvn_runtime_units.py upstream > /tmp/dvn-runtime-migration.txt 2>&1; then
+            echo "ERROR: unsafe migration unexpectedly succeeded against upstream V1" >&2
+            exit 1
+          fi
+          cat /tmp/dvn-runtime-migration.txt
+          grep -q 'STOP: ZK tree still uses V1' /tmp/dvn-runtime-migration.txt
+          echo 'Release blocked: 8-decimal runtime must wait for matching active ZK proof system.' >> "$GITHUB_STEP_SUMMARY"
       - name: FRAME consensus accounting and vesting tests
         working-directory: upstream
         run: |
