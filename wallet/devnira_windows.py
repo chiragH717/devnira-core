@@ -50,10 +50,11 @@ class DVNMonitor(tk.Tk):
             chain = rpc(url, "system_chain")
             genesis = rpc(url, "chain_getBlockHash", [0])
             version = rpc(url, "state_getRuntimeVersion")
+            validate_identity(chain, version, genesis, self.expected_genesis.get().strip())
             self.chain.set(str(chain))
             self.genesis.set(str(genesis))
             self.runtime.set(str(version.get("specName", "unknown")) + " v" + str(version.get("specVersion", "?")))
-            self.status.set("Connected (unverified network)")
+            self.status.set("Runtime/genesis identity matched trusted pin (RPC still unauthenticated)")
         except Exception as exc:
             self.status.set("Disconnected")
             messagebox.showerror("RPC connection failed", str(exc))
