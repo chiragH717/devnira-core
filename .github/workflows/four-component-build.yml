@@ -1,0 +1,135 @@
+name: DEVNIRA four-component integration build
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+
+jobs:
+  zk-proof:
+    name: ZK source codec and proof-stack candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v4
+      - name: Audit local ZK sources and codec tests
+        run: |
+          python3 -m unittest discover -s tests -p 'test_zk*.py' -v
+          python3 -m unittest discover -s tests -p 'test_patch_zk_amount_v2.py' -v
+          python3 -m unittest discover -s tests -p 'test_audit_zk_migration.py' -v
+      - name: Clone ZK proof source
+        run: |
+          git clone --depth 1 https://github.com/Quantus-Network/qp-zk-circuits.git zk-circuits
+          git -C zk-circuits rev-parse HEAD | tee zk-revision.txt
+      - name: Apply native DVN u64 input prototype
+        run: python3 scripts/patch_zk_proof_inputs_v2.py zk-circuits
+      - name: Compile real input codec tests
+        working-directory: zk-circuits
+        run: cargo test -p qp-wormhole-inputs --lib dvn_v2 -- --nocapture
+      - name: Mark proof status accurately
+        run: |
+          echo 'ZK proof inputs compiled, but Poseidon2 leaf, aggregator, prover, verifier and on-chain proof are still V1.' >> "$GITHUB_STEP_SUMMARY"
+
+  runtime-genesis:
+    name: Reward, vesting and node native/WASM development candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test tokenomics and genesis calculations
+        run: |
+          python3 -m unittest discover -s tests -v
+          cargo test --manifest-path rust/tokenomics/Cargo.toml
+      - name: Checkout exact upstream source
+        run: |
+          git clone --depth 1 https://github.com/Quantus-Network/chain.git upstream
+          git -C upstream rev-parse HEAD | tee chain-revision.txt
+      - name: Apply candidate rewards and protected monthly vesting
+        run: |
+          python3 scripts/patch_reward_runtime.py upstream
+          python3 scripts/test_reward_runtime.py upstream
+          python3 scripts/protect_genesis_vesting.py upstream
+          python3 scripts/test_genesis_vesting_protection.py upstream
+          python3 scripts/test_onchain_vesting.py upstream
+      - name: Install runtime build dependencies
+        run: |
+          rustup toolchain install 1.93.0 --profile minimal
+          rustup target add wasm32v1-none --toolchain 1.93.0
+          sudo apt-get update
+          sudo apt-get install -y clang libclang-dev llvm-dev libssl-dev pkg-config protobuf-compiler libprotobuf-dev cmake build-essential
+          echo "LIBCLANG_PATH=$(llvm-config --libdir)" >> "$GITHUB_ENV"
+      - name: FRAME consensus accounting and vesting tests
+        working-directory: upstream
+        run: |
+          cargo +1.93.0 test --locked -p pallet-mining-rewards --lib dvn_ -- --nocapture
+          cargo +1.93.0 test --locked -p pallet-vesting --lib dvn_ -- --nocapture
+      - name: Native and embedded WASM compile
+        working-directory: upstream
+        run: cargo +1.93.0 build --release --locked -p quantus-node
+      - name: Record development genesis candidate (NOT DEVNIRA mainnet)
+        run: |
+          upstream/target/release/quantus-node build-spec --dev --disable-default-bootnode > dev-chain-spec.json
+          python3 -m json.tool dev-chain-spec.json >/dev/null
+          echo 'This is an upstream 12-decimal development chain, NOT DVN independent genesis.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload exact upstream dev revision
+        uses: actions/upload-artifact@v4
+        with:
+          name: dvn-dev-runtime-evidence-not-mainnet
+          path: |
+            chain-revision.txt
+            dev-chain-spec.json
+          if-no-files-found: error
+
+  windows-wallet:
+    name: Windows monitor build (NOT signing wallet)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate read-only Windows UI
+        shell: pwsh
+        run: python -m py_compile wallet/devnira_windows.py wallet/devnira_rpc.py
+      - name: Build Windows pre-release diagnostic executable
+        shell: pwsh
+        run: |
+          python -m pip install pyinstaller
+          python -m PyInstaller --onefile --windowed --name DEVNIRA-Node-Monitor wallet/devnira_windows.py
+      - name: Upload read-only diagnostic
+        uses: actions/upload-artifact@v4
+        with:
+          name: DVN-Windows-Node-Monitor-NOT-WALLET
+          path: dist/DEVNIRA-Node-Monitor.exe
+          if-no-files-found: error
+
+  gpu-testnet:
+    name: GPU mining testnet prerequisite audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify mining formula and protocol reference
+        run: |
+          python3 -m unittest discover -s tests -p 'test_tokenomics.py' -v
+          cargo test --manifest-path rust/tokenomics/Cargo.toml
+      - name: State GPU hardware proof not performed on CI CPU runner
+        run: |
+          echo 'No NVIDIA or AMD device is attached to this workflow.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Two-node sync, actual GPU PoW proofs, network reorg and miner pool compatibility remain UNTESTED.' >> "$GITHUB_STEP_SUMMARY"
+
+  release-gate:
+    name: Production completeness gate (EXPECTED BLOCK until implemented)
+    runs-on: ubuntu-latest
+    needs: [zk-proof, runtime-genesis, windows-wallet, gpu-testnet]
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check candidate jobs
+        env:
+          ZK: ${{ needs.zk-proof.result }}
+          RUNTIME: ${{ needs.runtime-genesis.result }}
+          WINDOWS: ${{ needs.windows-wallet.result }}
+          GPU: ${{ needs.gpu-testnet.result }}
+        run: |
+          echo "Candidate results: ZK=$ZK runtime=$RUNTIME Windows=$WINDOWS GPU=$GPU"
+      - name: Block mainnet release without real proofs, wallet and GPU evidence
+        run: |
+          echo '{}' > evidence.json
+          python3 scripts/release_evidence_gate.py evidence.json
