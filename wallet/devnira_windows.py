@@ -34,6 +34,8 @@ class DVNMonitor(tk.Tk):
         ttk.Label(frame, text="Read-only node monitor. NOT a wallet: no private keys, balances, or transfers.").pack(anchor="w", pady=(4, 20))
         ttk.Label(frame, text="Local RPC endpoint").pack(anchor="w")
         ttk.Entry(frame, textvariable=self.endpoint, width=65).pack(anchor="w", pady=4)
+        ttk.Label(frame, text="Trusted DEVNIRA genesis hash (0x + 64 hex digits)").pack(anchor="w")
+        ttk.Entry(frame, textvariable=self.expected_genesis, width=65).pack(anchor="w", pady=4)
         ttk.Button(frame, text="Connect / Refresh", command=self.refresh).pack(anchor="w", pady=12)
         for label, value in (("Connection", self.status), ("Chain", self.chain), ("Genesis hash", self.genesis), ("Runtime", self.runtime)):
             ttk.Label(frame, text=label + ":", font=("Segoe UI", 10, "bold")).pack(anchor="w")
