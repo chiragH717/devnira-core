@@ -29,3 +29,8 @@ Inspection of upstream `pallets/vesting/src/lib.rs` confirms `vested_amount` ret
 `spec/genesis_manifest.py` now emits `runtime_vesting_schedules_absolute_ms` tuples `[public_address, start_ms, cliff_ms, end_ms, amount_units]` and `anchor_to_first_timestamp=false`, ready to be fed into a future custom genesis preset after validation.
 
 **Important blockers remain:** 12 grants per account count toward the upstream 64-schedule maximum, payout amounts must satisfy the ZK leaf quantum, addresses need SS58 decoding/format checks, genesis has to construct the vesting pot and verify *total* issuance, and existing treasury admin can terminate/retarget grants. To make the 12-month promise genuinely immutable, privilege restrictions and on-chain integration tests are required. The current JSON manifest is not on-chain.
+
+## Automated FRAME integration checks
+A new [vesting integration workflow](../.github/workflows/vesting-integration.yml) runs automatically on relevant code pushes. It clones the upstream FRAME vesting pallet, injects [a twelve-month release test](../scripts/test_onchain_vesting.py) using a **test-only** beneficiary and timestamp, compiles the actual pallet and verifies: no release a millisecond before each Gregorian monthly cliff; full release at each cliff; exactly twelve payouts; and an intact vesting pot buffer. It also runs the upstream pallet's existing tests.
+
+**Verification status:** The workflow source is committed, but its latest CI result has not been inspected. This verifies vesting pallet semantics only and does not create DVN's independent genesis, migrate its ZK proof format, lock approved beneficiaries' funds on mainnet or remove treasury administrative privileges. Do not run a production launch from these tests alone.
