@@ -20,5 +20,14 @@
   "genesis_state_root": null,
   "mining_allocation_units": 9000000000000000,
   "team_investor_founder_allocation_units": 1000000000000000,
-  "allocation_status": "approved_policy_pending_beneficiary_addresses_vesting_and_runtime_implementation"
+  "allocation_status": "approved_policy_pending_beneficiary_addresses_vesting_and_runtime_implementation",
+  "team_investor_founder_vesting": {
+    "total_units": 1000000000000000,
+    "immediately_unlocked_units": 300000000000000,
+    "locked_units": 700000000000000,
+    "lock_duration_seconds": 63072000,
+    "unlock_rule": "cliff_after_730_days_from_mainnet_genesis",
+    "beneficiary_addresses": [],
+    "status": "policy_approved_not_implemented"
+  }
 }
