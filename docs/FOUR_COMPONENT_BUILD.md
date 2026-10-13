@@ -42,3 +42,18 @@ Once an actual DVN wallet exists, obtain only the public receive address and ver
 `scripts/patch_dvn_runtime_units.py` prepares **actual runtime identity and 8-decimal balance constants**, but intentionally **refuses** to apply while the old u32/10^10 ZK tree and Wormhole scaling remain present, or reward/immutable-vesting patches are absent. Regression tests verify all these fail-closed conditions and the exact staged 8-decimal runtime constants. `four-component-build.yml` exercises this negative safety check, rather than silently producing an unusable eight-decimal chain.
 
 **Still blockers, not solved by passing candidate compilation:** active leaf-format and witnesses, exact prover/aggregator/verifier/public-input migration, native assets vs foreign-assets policy, coherent fee/quantum logic, trusted independent genesis, company-controlled secure signer, real GPU PoW hardware tests. Do not interpret the expected old-ZK rejection as a successful 8-decimal native node build.
+
+## Single-workflow V2 proof and two-node test additions (2026-10-13)
+
+The combined workflow now runs the DEVNIRA native amount Plonky2 circuit proof/verify tests directly against the upstream `qp-wormhole-circuit` source **in the same job as the V2 proof input crate**. The positive test accepts 0, 1 base unit, 5 DVN and the maximum 100M DVN base units; oversized witnesses must fail. These are genuine gadget-level proofs, NOT an active ZK leaf/aggregated withdrawal proof.
+
+`scripts/test_two_node_rpc.py` is an executable, independent DEVNIRA **two-node smoke harness**: it requires two distinct localhost RPC endpoints, an independently pinned trusted DEVNIRA genesis hash, DEVNIRA runtime identity, peers on both nodes, finalized chain advancement and the same block hash at the minimum common finalized height. `tests/test_two_node_rpc.py` exercises wrong genesis, peers, stalled finality and fork rejection; the combined CI runs this **test suite only** because it lacks a truly independent DVN genesis and two running DVN nodes. Once independent nodes exist, run e.g.:
+```bash
+python3 scripts/test_two_node_rpc.py \
+  --node-a http://127.0.0.1:9944 \
+  --node-b http://127.0.0.1:9945 \
+  --trusted-genesis 0x<64-trusted-hex-digits>
+```
+The sample is a placeholder; it is not a real chain hash. The smoke harness does **not** verify NVIDIA/AMD proof generation or QPoW validity and must never satisfy those release-evidence fields by itself.
+
+**State:** Both files and workflow updates are committed, but the new combined CI run outcome was not established in this change. Independent Genesis, actual ZK circuit migration, wallet signing, GPU hardware tests and security review still block production.
