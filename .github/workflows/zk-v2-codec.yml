@@ -4,6 +4,8 @@ on:
     branches: [main]
     paths:
       - scripts/patch_zk_amount_v2.py
+      - scripts/audit_zk_migration.py
+      - tests/test_audit_zk_migration.py
       - tests/test_patch_zk_amount_v2.py
       - .github/workflows/zk-v2-codec.yml
   workflow_dispatch:
@@ -26,6 +28,20 @@ jobs:
           git -C upstream rev-parse HEAD
       - name: Inject strict 8-decimal amount reference codec into FRAME ZK-tree
         run: python3 scripts/patch_zk_amount_v2.py upstream
+      - name: Audit all ZK V1 proof and runtime migration blockers
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_audit_zk_migration.py' -v
+          if python3 scripts/audit_zk_migration.py upstream > zk-migration-report.txt 2>&1; then
+            echo "Unexpected production readiness result; review source audit"
+            exit 1
+          fi
+          cat zk-migration-report.txt
+          grep -q 'ZK-tree still' zk-migration-report.txt
+          grep -q 'Wormhole still' zk-migration-report.txt
+          grep -q 'qp-wormhole-verifier remains upstream V1' zk-migration-report.txt
+          echo "PASS: V1 incompatibilities correctly block production release"
       - name: Install Rust toolchain and native dependencies
         run: |
           rustup toolchain install 1.93.0 --profile minimal
