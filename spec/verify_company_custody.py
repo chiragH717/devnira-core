@@ -102,14 +102,18 @@ def verify_company_certificate(certificate: dict, node: Path, expected_node_sha2
         raise UnverifiedCustody("Valid public Dilithium87 key required")
     if not isinstance(sig,str) or not HEXBYTES.fullmatch(sig):
         raise UnverifiedCustody("Valid Dilithium87 signature required")
-    _run_native(node,"verify",sig,pub,"--message",expected)
-    public_json=_run_native(node,"inspect",pub,"--public","--output-type","json")
-    try:
-        parsed=json.loads(public_json)
-    except (json.JSONDecodeError, TypeError) as exc:
-        raise UnverifiedCustody("Native public-key inspection did not return valid JSON") from exc
-    if parsed.get("ss58Address")!=addr:
-        raise UnverifiedCustody("Signature public key does not derive the proposed company account")
+    # Upstream sc-cli does NOT implement key sign/key verify/key inspect for
+    # this node. The patched native command cryptographically verifies ML-DSA-87
+    # AND derives/binds the full public key to this exact SS58-190 address.
+    verdict=_run_native(
+        node, "devnira-verify",
+        "--signature", sig,
+        "--public-key", pub,
+        "--message", expected,
+        "--expected-address", addr,
+    )
+    if verdict.strip() != "Signature verifies correctly.":
+        raise UnverifiedCustody("Native Dilithium87 verifier did not confirm ownership")
     return {"company_address":addr,"network":NETWORK,
             "public_key_hex":pub,"challenge_verified":True,
             "ownership_signature_verified":True,
