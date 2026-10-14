@@ -1,0 +1,57 @@
+name: DEVNIRA native V2 Poseidon leaf candidate tests
+on:
+  push:
+    branches: [main]
+    paths:
+      - scripts/patch_zk_tree_native_v2.py
+      - tests/test_zk_tree_native_v2_patch.py
+      - config/upstream-pins.json
+      - .github/workflows/zk-tree-native-v2.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-v2-leaf:
+    name: Exact native DVN base unit commitments inside actual FRAME pallet
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test fail-closed source patch and Python syntax
+        run: |
+          python3 -m py_compile scripts/patch_zk_tree_native_v2.py
+          python3 -m unittest discover -s tests -p 'test_zk_tree_native_v2_patch.py' -v
+      - name: Check out precisely pinned upstream FRAME source
+        run: |
+          set -euo pipefail
+          PIN=$(python3 -c 'import json; print(json.load(open("config/upstream-pins.json"))["upstream_chain"]["sha"])')
+          git clone --depth 1 https://github.com/Quantus-Network/chain.git upstream
+          git -C upstream fetch --depth 1 origin "$PIN"
+          git -C upstream checkout --detach "$PIN"
+          test "$(git -C upstream rev-parse HEAD)" = "$PIN"
+          git -C upstream rev-parse HEAD > upstream-native-zk-source.txt
+      - name: Inject exact eight-decimal DEVNIRA native Poseidon hash candidate
+        run: |
+          python3 scripts/patch_zk_tree_native_v2.py upstream
+          git -C upstream diff -- pallets/zk-tree/src > dvn-native-v2-leaf.patch
+          test -s dvn-native-v2-leaf.patch
+      - name: Install pinned Rust and native deps
+        run: |
+          rustup toolchain install 1.93.0 --profile minimal
+          sudo apt-get update
+          sudo apt-get install -y clang libclang-dev llvm-dev libssl-dev pkg-config protobuf-compiler cmake build-essential
+          echo "LIBCLANG_PATH=$(llvm-config --libdir)" >> "$GITHUB_ENV"
+      - name: Compile and test actual FRAME leaf hashing for one-base-unit and max supply
+        working-directory: upstream
+        run: cargo +1.93.0 test --locked -p pallet-zk-tree --lib dvn_native_v2_ -- --nocapture
+      - name: Preserve development evidence only
+        uses: actions/upload-artifact@v4
+        with:
+          name: devnira-v2-native-poseidon-leaf-prototype-NOT-ACTIVE
+          path: |
+            dvn-native-v2-leaf.patch
+            upstream-native-zk-source.txt
+          if-no-files-found: error
+      - name: Explain active proof boundary
+        run: |
+          echo "Actual FRAME native V2 leaf candidate compiles; V1 is still active. Requires matching full V2 prover, aggregator, on-chain verifier and runtime genesis before use." >> "$GITHUB_STEP_SUMMARY"
