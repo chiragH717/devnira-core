@@ -1,0 +1,212 @@
+#!/usr/bin/env python3
+"""Inject real Plonky2 8-decimal private/public batch value constraints.
+
+Inert source module, deliberately NOT a replacement for live V1 recursive
+circuits. This validates the mathematically dangerous u32->u64 migration
+over real prover-generated proofs in qp-wormhole-aggregator 4.4.0.
+"""
+import argparse
+from pathlib import Path
+
+MARKER="pub mod devnira_v2_segment;"
+RUST=r'''//! DEVNIRA V2 native exact-value recursive batch building block (inactive).
+//!
+//! A complete migration additionally needs V2 leaf verifier digests, Merkle
+//! membership, nullifier uniqueness/settlement, fee-rate logic, recursive
+//! wrappers, public-output binding and matching on-chain pinned artifacts.
+//! This module is a real Plonky2 constraint/proof candidate, NOT live V2.
+use plonky2::iop::target::Target;
+use zk_circuits_common::{
+    circuit::{F, D},
+    gadget_builder::GadgetBuilder,
+    gadgets::enforce_target_less_than_const,
+};
+pub const DVN_MAX: u64=10_000_000_000_000_000;
+pub const DVN_BITS: usize=54;
+pub const MAX_LEAVES: usize=64;
+
+/// A Goldilocks felt is an exact native DVN balance, never Quantus's
+/// quantized V1 u32 amount. This cap is safe under the 54-bit range check.
+pub fn constrain_v2_native_amount(
+    builder: &mut impl GadgetBuilder<F,D>, amount: Target
+) {
+    builder.range_check(amount,DVN_BITS);
+    enforce_target_less_than_const(
+        builder,amount,
+        usize::try_from(DVN_MAX+1).expect("V2 circuit construction requires 64-bit host"),
+        DVN_BITS,
+    );
+}
+
+/// Constrain a native full-precision private batch before recursion.
+///
+/// Every individual amount <= 100M DVN. Both running sums <= 100M DVN,
+/// ensuring (a) no field wraparound (b) no fabricated extra issuance and
+/// (c) a batch whose sum exceeds total coin supply cannot be settled.
+/// The protocol's *per-block fee policy* is additional to conservation.
+pub fn constrain_v2_private_batch_value(
+    builder: &mut impl GadgetBuilder<F,D>,
+    inputs: &[Target],
+    outputs: &[Target],
+    total_fee: Target,
+) -> (Target,Target) {
+    assert!(!inputs.is_empty() && inputs.len() <= MAX_LEAVES,
+        "DEVNIRA V2 leaf count out of bounds");
+    assert_eq!(outputs.len(),2*inputs.len(),
+        "DEVNIRA V2 requires two exits per leaf");
+    let mut total_in=builder.zero();
+    for amount in inputs {
+        constrain_v2_native_amount(builder,*amount);
+        total_in=builder.add(total_in,*amount);
+    }
+    constrain_v2_native_amount(builder,total_in);
+    let mut total_out=builder.zero();
+    for amount in outputs {
+        constrain_v2_native_amount(builder,*amount);
+        total_out=builder.add(total_out,*amount);
+    }
+    constrain_v2_native_amount(builder,total_out);
+    constrain_v2_native_amount(builder,total_fee);
+    let plus_fee=builder.add(total_out,total_fee);
+    builder.connect(total_in,plus_fee);
+    // All three terms <= 10^16 and the sum <= 2*10^16, which is
+    // below the Goldilocks prime, so equality is an integer equality.
+    (total_in,total_out)
+}
+
+/// Public wrapper amounts are deduped, summed outputs. Enforce 100M
+/// maximum combined native settlement across every exit slot even when
+/// each individual account amount is below cap. No 32-bit truncation.
+pub fn constrain_v2_public_batch_exits(
+    builder: &mut impl GadgetBuilder<F,D>, exits: &[Target]
+) -> Target {
+    assert!(!exits.is_empty() && exits.len() <= MAX_LEAVES*MAX_LEAVES*2,
+        "DEVNIRA V2 public-batch slot count out of bounds");
+    let mut total=builder.zero();
+    for amount in exits {
+        constrain_v2_native_amount(builder,*amount);
+        total=builder.add(total,*amount);
+    }
+    constrain_v2_native_amount(builder,total);
+    total
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use plonky2::{
+        field::types::Field,
+        iop::witness::{PartialWitness,WitnessWrite},
+        plonk::{circuit_builder::CircuitBuilder,circuit_data::CircuitConfig},
+    };
+    use zk_circuits_common::circuit::C;
+
+    #[test]
+    fn dvn_v2_private_batch_proves_exact_u64_fee_and_value_conservation() {
+        let mut b=CircuitBuilder::<F,D>::new(CircuitConfig::standard_recursion_config());
+        let inputs=[b.add_virtual_target(),b.add_virtual_target()];
+        let outputs=[
+            b.add_virtual_target(),b.add_virtual_target(),
+            b.add_virtual_target(),b.add_virtual_target(),
+        ];
+        let fee=b.add_virtual_target();
+        let (total_in,total_out)=
+            constrain_v2_private_batch_value(&mut b,&inputs,&outputs,fee);
+        b.register_public_input(total_in);
+        b.register_public_input(total_out);
+        b.register_public_input(fee);
+        let circuit=b.build::<C>();
+        let prove=|i:[u64;2],o:[u64;4],f:u64| {
+            let mut pw=PartialWitness::new();
+            for (&t,&v) in inputs.iter().zip(i.iter()) {
+                pw.set_target(t,F::from_canonical_u64(v)).unwrap();
+            }
+            for (&t,&v) in outputs.iter().zip(o.iter()) {
+                pw.set_target(t,F::from_canonical_u64(v)).unwrap();
+            }
+            pw.set_target(fee,F::from_canonical_u64(f)).unwrap();
+            circuit.prove(pw)
+        };
+        for (i,o,f) in [
+            ([0,0],[0,0,0,0],0),
+            ([1,0],[1,0,0,0],0),
+            ([58_333_333_333_333,1],
+             [30_000_000_000_000,28_333_333_333_332,1,0],1),
+            ([DVN_MAX,0],[DVN_MAX,0,0,0],0),
+        ] {
+            let proof=prove(i,o,f).expect("valid full-width transfer must prove");
+            circuit.verify(proof.clone()).expect("valid full-width proof verifies");
+            assert_eq!(proof.public_inputs[0],
+                F::from_canonical_u64(i[0]+i[1]));
+        }
+        for (i,o,f) in [
+            ([1,0],[2,0,0,0],0), // inflation
+            ([1,0],[0,0,0,0],0), // unclaimed/destroyed input
+            ([58_333_333_333_333,1],
+             [30_000_000_000_000,28_333_333_333_332,1,0],2), // fee tamper
+            ([DVN_MAX,1],[DVN_MAX,1,0,0],0), // totals over max
+            ([DVN_MAX+1,0],[0,0,0,0],DVN_MAX), // one input above max
+            ([1,0],[DVN_MAX+1,0,0,0],0), // output above max
+        ] {
+            assert!(prove(i,o,f).is_err(),
+                "invalid full-width settlement must not generate a proof");
+        }
+    }
+    #[test]
+    fn dvn_v2_public_batch_rejects_aggregate_above_native_supply() {
+        let mut b=CircuitBuilder::<F,D>::new(CircuitConfig::standard_recursion_config());
+        let accounts=[b.add_virtual_target(),b.add_virtual_target(),b.add_virtual_target()];
+        let total=constrain_v2_public_batch_exits(&mut b,&accounts);
+        b.register_public_input(total);
+        let data=b.build::<C>();
+        let prove=|amounts:[u64;3]| {
+            let mut pw=PartialWitness::new();
+            for (&t,&v) in accounts.iter().zip(amounts.iter()) {
+                pw.set_target(t,F::from_canonical_u64(v)).unwrap();
+            }
+            data.prove(pw)
+        };
+        for case in [
+            [0,0,0],[1,0,0],
+            [58_333_333_333_333,30_000_000_000_000,1],
+            [DVN_MAX-1,1,0],
+        ] {
+            let proof=prove(case).expect("valid aggregated proof must prove");
+            data.verify(proof).expect("valid aggregated proof must verify");
+        }
+        assert!(prove([DVN_MAX,1,0]).is_err(),
+            "in-range exits with total above 100M must not prove");
+        assert!(prove([DVN_MAX+1,0,0]).is_err(),
+            "above-cap individual exit must not prove");
+    }
+    #[test]
+    #[should_panic(expected="two exits per leaf")]
+    fn dvn_v2_rejects_invalid_private_batch_shape() {
+        let mut b=CircuitBuilder::<F,D>::new(CircuitConfig::standard_recursion_config());
+        let input=[b.add_virtual_target()];
+        let outputs=[b.add_virtual_target()];
+        let fee=b.zero();
+        let _=constrain_v2_private_batch_value(&mut b,&input,&outputs,fee);
+    }
+}
+'''
+
+def patch(root:Path)->None:
+    lib=root/"wormhole/aggregator/src/lib.rs"
+    target=root/"wormhole/aggregator/src/devnira_v2_segment.rs"
+    original=lib.read_text(encoding="utf-8")
+    if target.exists() or MARKER in original:
+        raise ValueError("DEVNIRA V2 segment module already exists")
+    if original.count("pub mod private_batch;")!=1 or original.count("pub mod public_batch;")!=1:
+        raise ValueError("Unrecognized upstream aggregator module layout")
+    if not (root/"wormhole/aggregator/src/private_batch/circuit/circuit_logic.rs").exists():
+        raise ValueError("Cannot verify real upstream private-batch circuit source")
+    if not (root/"wormhole/aggregator/src/public_batch/circuit/circuit_logic.rs").exists():
+        raise ValueError("Cannot verify real upstream public-batch circuit source")
+    target.write_text(RUST,encoding="utf-8")
+    lib.write_text(original+"\n// Inactive exact-u64 batch constraints; V1 recursion remains unchanged.\n"+MARKER+"\n",encoding="utf-8")
+    print("Staged verifiable, native-u64 Plonky2 private/public aggregation amount constraints (inactive).")
+
+if __name__=="__main__":
+    p=argparse.ArgumentParser()
+    p.add_argument("source_root",type=Path)
+    patch(p.parse_args().source_root)
