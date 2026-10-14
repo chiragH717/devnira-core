@@ -23,7 +23,7 @@ def status(root: Path=ROOT) -> dict:
     if c.get("public_address") is None:
         problems.append("Verified company DEVNIRA public address not available")
     problems.extend([
-        "Active V2 Poseidon2 leaf, aggregator, prover and verifier not integrated end-to-end",
+        "Active V2 Poseidon2 leaf, aggregator, prover and verifier not integrated end-to-end; pinned chain uses proof crates 4.3.0 while opt-in V2 decoder source is 4.4.0",
         "Independent 8-decimal DEVNIRA mainnet genesis has not been generated and tested",
         "Vesting pot existential-deposit fix is opt-in FRAME code only; actual independent DVN genesis remains unbuilt/unverified",
         "Windows secure transaction-signing wallet has not passed end-to-end tests",
@@ -31,7 +31,7 @@ def status(root: Path=ROOT) -> dict:
         "Source revisions pinned for development; independent full-runtime build and security review incomplete",
     ])
     jobs=[
-        "Inactive V2 Poseidon2 leaf and Plonky2 cross-layer amount/proof tests",
+        "Opt-in V2 Poseidon2 leaf, Plonky2 constraints and exact-u64 leaf/private/public batch input parsers (NOT linked into active verifier)",
         "Native Dilithium87 signing of public company-ownership challenges (NOT extrinsic transfers)",
         "Reward and immutable 12-month vesting on pinned upstream development runtime",
         "Windows SS58-190 receive and genesis-pinned finalized balance preview EXE (READ ONLY)",
@@ -50,6 +50,7 @@ def status(root: Path=ROOT) -> dict:
         "last_user_verified_candidate_build":"four-component integration build #3; development only",
         "candidate_jobs_passed":jobs,
         "company_genesis_pot_identity":"canonical FRAME PalletId(qvesting), SS58 190; no real company account/funding yet",
+        "proof_migration":{"opt_in_native_u64_leaf_private_public_parser_tests":True,"opt_in_no_std_compile":True,"active_v2_recursive_verifier":False,"active_v2_onchain_settlement":False,"chain_proof_dependency":"4.3.0","external_proof_candidate":"4.4.0","compatible_for_runtime_8dec_activation":False},
         "windows_wallet_capabilities":{"public_receive":True,"finalized_balance_reader":True,"signed_send":False,"real_genesis_pin_available":False},
         "gpu_test_evidence":{"nvidia_cuda_source_checked":True,"amd_wgpu_source_checked":True,"actual_nvidia_pow":False,"actual_amd_pow":False,"two_live_nodes":False},
         "known_blockers":problems,
