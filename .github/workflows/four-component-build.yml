@@ -84,6 +84,7 @@ jobs:
           python3 scripts/protect_genesis_vesting.py upstream
           python3 scripts/patch_exact_genesis_vesting.py upstream
           python3 scripts/patch_dvn_wallet_cli.py upstream
+          python3 scripts/patch_zk_tree_native_v2.py upstream
           python3 scripts/test_exact_genesis_vesting.py upstream
           python3 scripts/test_genesis_vesting_protection.py upstream
           python3 scripts/test_onchain_vesting.py upstream
@@ -111,6 +112,7 @@ jobs:
           cargo +1.93.0 test --locked -p pallet-mining-rewards --lib dvn_ -- --nocapture
           cargo +1.93.0 test --locked -p pallet-vesting --lib dvn_ -- --nocapture
           cargo +1.93.0 test --locked -p pallet-vesting --lib dvn_exact_pot_ -- --nocapture
+          cargo +1.93.0 test --locked -p pallet-zk-tree --lib dvn_native_v2_ -- --nocapture
       - name: Native and embedded WASM compile
         working-directory: upstream
         run: cargo +1.93.0 build --release --locked -p quantus-node
