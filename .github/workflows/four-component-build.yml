@@ -208,7 +208,7 @@ jobs:
           if-no-files-found: error
 
   windows-wallet:
-    name: Windows monitor build (NOT signing wallet)
+    name: Windows DVN receive and finalized balance preview (NOT signing)
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
@@ -217,20 +217,22 @@ jobs:
         shell: pwsh
         run: |
           python -m unittest discover -s tests -p "test_network_identity.py" -v
-          python -m py_compile wallet/network_identity.py
-      - name: Validate read-only Windows UI
+          python -m unittest discover -s tests -p "test_wallet_balance.py" -v
+          python -m unittest discover -s tests -p "test_ss58_company_account.py" -v
+          python -m py_compile wallet/network_identity.py wallet/devnira_balance.py
+      - name: Validate SS58 receive address and finalized account-balance Windows UI
         shell: pwsh
         run: python -m py_compile wallet/devnira_windows.py wallet/devnira_rpc.py
       - name: Build Windows pre-release diagnostic executable
         shell: pwsh
         run: |
           python -m pip install pyinstaller
-          python -m PyInstaller --onefile --windowed --name DEVNIRA-Node-Monitor wallet/devnira_windows.py
-      - name: Upload read-only diagnostic
+          python -m PyInstaller --onefile --windowed --name DEVNIRA-Wallet-Preview-ReadOnly wallet/devnira_windows.py
+      - name: Upload unsigned read-only wallet preview, NOT a signing wallet
         uses: actions/upload-artifact@v4
         with:
-          name: DVN-Windows-Node-Monitor-NOT-WALLET
-          path: dist/DEVNIRA-Node-Monitor.exe
+          name: DVN-Windows-Receive-Balance-NOT-SIGNING-WALLET
+          path: dist/DEVNIRA-Wallet-Preview-ReadOnly.exe
           if-no-files-found: error
 
   gpu-testnet:
@@ -286,7 +288,7 @@ jobs:
             echo "The four development jobs passed. This **is not** a mainnet approval."
             echo
             echo "## Production: BLOCKED"
-            echo "Actual active V2 proofs, independent 8-decimal genesis, secure Windows signing wallet, and NVIDIA/AMD GPU mining tests are not yet evidenced."
+            echo "Windows pre-release client now has pinned receive and finalized balance reading, but actual active V2 proofs, independent 8-decimal genesis, signed transfers and NVIDIA/AMD GPU mining tests are NOT evidenced."
             echo
             echo "The production-release workflow remains **fail-closed** and must reject missing evidence."
             echo
