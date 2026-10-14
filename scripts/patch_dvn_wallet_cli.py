@@ -78,8 +78,8 @@ def patch(root: Path) -> None:
         "// Default derivation path for Quantus: m/44'/189189'/0'/0'/0'",
         "// DEVNIRA offline signing must use the same hardened keygen path.")
     crypto = replace_exact(crypto,
-        'const DEFAULT_PATH: &str = "m/44\\'/189189\\'/0\\'/0\\'/0\\'";',
-        'const DEFAULT_PATH: &str = "m/44\\'/900190\\'/0\\'/0\\'/0\\'";')
+        "const DEFAULT_PATH: &str = \"m/44'/189189'/0'/0'/0'\";",
+        "const DEFAULT_PATH: &str = \"m/44'/900190'/0'/0'/0'\";")
 
     # Script is fail-closed: commit all file contents only after all checks.
     command_file.write_text(cmd)
