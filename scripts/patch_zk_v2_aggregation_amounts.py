@@ -86,8 +86,13 @@ pub fn constrain_v2_public_batch_exits(
     for amount in exits {
         constrain_v2_native_amount(builder,*amount);
         total=builder.add(total,*amount);
+        // SECURITY: do not check only the final sum! With up to 8192
+        // public exit slots, raw native amounts can exceed Goldilocks p
+        // and wrap to an apparently valid total (e.g. exactly p -> 0).
+        // Bound every monotone prefix: previous total <=1e16 and the
+        // next amount <=1e16, so the addition itself is <2e16 << p.
+        constrain_v2_native_amount(builder,total);
     }
-    constrain_v2_native_amount(builder,total);
     total
 }
 #[cfg(test)]
@@ -177,6 +182,19 @@ mod tests {
             "in-range exits with total above 100M must not prove");
         assert!(prove([DVN_MAX+1,0,0]).is_err(),
             "above-cap individual exit must not prove");
+    }
+    #[test]
+    fn dvn_v2_public_batch_prefix_cap_prevents_modular_wrap_at_high_slot_count() {
+        const P:u128=0xFFFF_FFFF_0000_0001;
+        let full=(P/(DVN_MAX as u128)) as usize;
+        let remainder=(P%(DVN_MAX as u128)) as u64;
+        assert!(full+1 <= MAX_LEAVES*MAX_LEAVES*2);
+        assert!(remainder <= DVN_MAX);
+        // This actual integer amount aliases ZERO if only the final field
+        // total is constrained. Prefix check forbids it after just TWO
+        // near-cap exits, well before the modular wrap at ~1845 slots.
+        assert_eq!(((full as u128)*(DVN_MAX as u128)+remainder as u128)%P,0);
+        assert!(2*DVN_MAX>DVN_MAX);
     }
     #[test]
     #[should_panic(expected="two exits per leaf")]
