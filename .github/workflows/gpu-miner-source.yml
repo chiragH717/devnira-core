@@ -1,0 +1,61 @@
+name: DEVNIRA pinned CUDA and AMD Vulkan miner source candidate
+on:
+  push:
+    branches: [main]
+    paths:
+      - scripts/audit_gpu_miner_source.py
+      - tests/test_gpu_miner_source_audit.py
+      - config/upstream-pins.json
+      - .github/workflows/gpu-miner-source.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  cuda-amd-source:
+    name: Compile pinned QPoW miner source without claiming GPU hardware
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test fail-closed NVIDIA/AMD/QPoW source requirements
+        run: python3 -m unittest discover -s tests -p 'test_gpu_miner_source_audit.py' -v
+      - name: Check out exact independent upstream GPU miner revision
+        run: |
+          set -euo pipefail
+          PIN=$(python3 -c 'import json;print(json.load(open("config/upstream-pins.json"))["gpu_miner"]["sha"])')
+          git clone --depth 1 https://github.com/Quantus-Network/quantus-miner.git gpu-miner
+          git -C gpu-miner fetch --depth 1 origin "$PIN"
+          git -C gpu-miner checkout --detach "$PIN"
+          test "$(git -C gpu-miner rev-parse HEAD)" = "$PIN"
+          git -C gpu-miner rev-parse HEAD > gpu-miner-revision.txt
+      - name: Verify Poseidon2 QPoW and CUDA/Vulkan engine code against frozen source
+        run: |
+          python3 scripts/audit_gpu_miner_source.py gpu-miner | tee gpu-miner-candidate.json
+          python3 -m json.tool gpu-miner-candidate.json > /dev/null
+          grep -q '"real_gpu_pow_proven": false' gpu-miner-candidate.json
+      - name: Install build toolchain and graphics API development headers
+        run: |
+          rustup toolchain install 1.93.0 --profile minimal
+          sudo apt-get update
+          sudo apt-get install -y clang libclang-dev pkg-config libssl-dev libvulkan-dev libudev-dev cmake build-essential
+      - name: Build real Poseidon2 QPoW CPU core tests
+        working-directory: gpu-miner
+        run: cargo +1.93.0 test --locked -p pow-core --lib
+      - name: Typecheck AMD-compatible Vulkan/wgpu engine without GPU device
+        working-directory: gpu-miner
+        run: cargo +1.93.0 check --locked -p engine-gpu
+      - name: Typecheck native NVIDIA CUDA candidate without GPU device
+        working-directory: gpu-miner
+        run: cargo +1.93.0 check --locked -p engine-cuda
+      - name: Preserve exact source and limitations
+        uses: actions/upload-artifact@v4
+        with:
+          name: DEVNIRA-NVIDIA-AMD-QPOW-SOURCE-ONLY-NO-GPU-TEST
+          path: |
+            gpu-miner-revision.txt
+            gpu-miner-candidate.json
+          if-no-files-found: error
+      - name: Do not mistake compilation for real GPU PoW
+        run: |
+          echo 'CUDA and Vulkan source checked against pinned upstream. This hosted runner has NO NVIDIA/AMD GPU, two independent DVN nodes, valid GPU PoW proofs or mining reward evidence.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'GPU pool/token/TLS protocol compatibility and node consensus proof remain BLOCKED.' >> "$GITHUB_STEP_SUMMARY"
