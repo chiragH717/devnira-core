@@ -4,6 +4,10 @@ NOT a finished independent runtime or zero-premine genesis.
 """
 import argparse
 from pathlib import Path
+try:
+    from scripts.guard_dvn_network_identity import patch as guard_network
+except ModuleNotFoundError:
+    from guard_dvn_network_identity import patch as guard_network
 
 def patch(root: Path):
     path = root / "node/src/chain_spec.rs"
@@ -40,6 +44,9 @@ def patch(root: Path):
     if 'pub const SS58Prefix: u8 = 189;' not in configs_src:
         raise RuntimeError("Upstream SS58 prefix changed")
     configs.write_text(configs_src.replace('pub const SS58Prefix: u8 = 189;', 'pub const SS58Prefix: u8 = 190;'))
+    # Never ship a pre-release node with Quantus Planck/Heisenberg/Mainnet
+    # selectors or arbitrary foreign --chain JSON import still enabled.
+    guard_network(root)
     print("Patched local dev chain-spec metadata, runtime identity and SS58 prefix.")
     print("WARNING: This is 12-decimal upstream-compatible DEVELOPMENT ONLY; DVN 8-decimal conversion is NOT done.")
     print("WARNING: Upstream development genesis may have premine. NOT mainnet-ready.")
