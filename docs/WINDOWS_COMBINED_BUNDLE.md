@@ -38,3 +38,18 @@ preparation and read-only local RPC on an independently pinned future
 chain. It has **no Send, no secure audited production custody, no running
 DVN mainnet, no transferable DVN balances and no actual 10M treasury**.
 Do not solicit deposits or distribute this as a production wallet.
+
+## GitHub Actions artifact storage HTTP 503 (October 2026)
+
+The first [PR #8 bundling workflow](https://github.com/chiragH717/devnira-core/pull/8)
+**successfully** fetched both binaries, checked their exact workflow/source
+provenance and SHA256, and published the combined ZIP artifact. During a
+later automatic `main` push run, Microsoft's GitHub Actions artifact blob
+storage returned `HTTP 503: Egress is over the account limit` in successive
+attempts. This is an **external distribution failure**, not a cryptographic
+proof failure. To avoid redundantly downloading large artifacts at each
+commit, `push` and `pull_request` now run only the fail-closed package
+regression suite. Distribution is allowed only through an intentional manual
+`workflow_dispatch` run, which checks BOTH immutable previous successful
+runs and both independent EXE SHA256 before assembling a fresh release ZIP.
+Never substitute a fake or unverified EXE if artifact storage is unavailable.
