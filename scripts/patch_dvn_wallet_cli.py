@@ -28,8 +28,10 @@ def replace_exact(source: str, old: str, new: str, expected: int=1) -> str:
 def patch(root: Path) -> None:
     command_file = root / "node/src/command.rs"
     cli_file = root / "node/src/cli.rs"
+    crypto_file = root / "primitives/dilithium-crypto/src/scheme_macro.rs"
     cmd = command_file.read_text()
     cli = cli_file.read_text()
+    crypto = crypto_file.read_text()
 
     cmd = replace_exact(cmd,
         "SensitiveBytes64, QUANTUS_DILITHIUM_CHAIN_ID,\n\tQUANTUS_WORMHOLE_CHAIN_ID,",
@@ -69,10 +71,21 @@ def patch(root: Path) -> None:
     cmd = replace_exact(cmd, "XXXXXXXXXXXXXXX Quantus Account Details", "XXXXXXXXXXXXXXX DEVNIRA Account Details")
     cmd = replace_exact(cmd, "XXXXXXXXXXXXXXX Quantus Wormhole Details", "XXXXXXXXXXXXXXX DEVNIRA Wormhole Details")
 
-    # Script is fail-closed: commit both file contents only after all checks.
+    # sp_core::Pair::from_phrase is called by the native `key sign` CLI.
+    # Without this path change it silently signs for a DIFFERENT account than
+    # the `key devnira --words` HD wallet — a custody-breaking mismatch.
+    crypto = replace_exact(crypto,
+        "// Default derivation path for Quantus: m/44'/189189'/0'/0'/0'",
+        "// DEVNIRA offline signing must use the same hardened keygen path.")
+    crypto = replace_exact(crypto,
+        'const DEFAULT_PATH: &str = "m/44\\'/189189\\'/0\\'/0\\'/0\\'";',
+        'const DEFAULT_PATH: &str = "m/44\\'/900190\\'/0\\'/0\\'/0\\'";')
+
+    # Script is fail-closed: commit all file contents only after all checks.
     command_file.write_text(cmd)
     cli_file.write_text(cli)
-    print("Patched native Rust node CLI: key devnira, HD isolation, SS58 190 and terminal-only new keys.")
+    crypto_file.write_text(crypto)
+    print("Patched native Rust node CLI and Dilithium sign path: key devnira, HD isolation, SS58 190, terminal-only new keys.")
     print("NOT COMPLETE: secure transaction signing, key-store encryption and independent DVN genesis not established.")
 
 if __name__ == "__main__":
