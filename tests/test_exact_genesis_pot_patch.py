@@ -1,4 +1,5 @@
 import tempfile
+import re
 import unittest
 from pathlib import Path
 
@@ -79,7 +80,7 @@ class ExactGenesisPotPatchTests(unittest.TestCase):
         self.assertIn("700_000_000_000_000", body)
         self.assertIn("Balances::total_issuance()", body)
         self.assertEqual(body.count("2027"), 0, "timestamps should be encoded as numeric milliseconds")
-        self.assertEqual(body.count("u64"), 14)  # 12 Gregorian deadlines plus 2 explicit constants
+        self.assertEqual(len(re.findall(r"\\b[0-9]{13}u64\\b", body)), 12)
 
 if __name__ == "__main__":
     unittest.main()
