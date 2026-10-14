@@ -38,3 +38,14 @@ This workflow **does not sign into Hostinger, set DNS records, upload files,
 activate SSL or prove the domain is live**. It packages source only.
 The content explicitly says DEVNIRA is NOT MAINNET. Never publish fake miner
 rewards, wallet download buttons or balances.
+
+## Reusing a domain previously pointed to another website
+
+- Your registered `devnira.co` stays yours; domain registration is different from buying hosting.
+- **Before changing DNS**, export the current DNS zone records and preserve the existing website, email MX/TXT/SPF/DKIM/DMARC records and any other subdomains. Find out where `@` and `www` currently point.
+- Create the new Hostinger hosting website (Custom PHP/HTML), upload the static site ZIP, and preview it using Hostinger's temporary URL.
+- If Hostinger reports **domain already used**, remove the old Hostinger website/domain association by changing the old site's domain to a temporary one or request Hostinger support assistance. Changing nameservers does not detach a domain attached to a different Hostinger account.
+- Only after the new site is verified and you authorize replacing the previous website should you change the root-domain/www A/CNAME targets. Avoid wholesale nameserver swaps if an existing DNS zone supports email or other services. Preserve TTL/records and confirm HTTPS.
+- Never provide passwords, 2FA codes, recovery codes or private wallet keys in GitHub or chat. Grant access through a proper account-sharing/invitation flow supported by the provider, or run a browser session in ChatGPT Work with your own sign-in.
+
+**No Hostinger deployment or DNS change has been made by these commits.** The existing site remains unaffected by the repository changes.
