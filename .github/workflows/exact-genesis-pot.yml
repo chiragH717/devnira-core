@@ -1,0 +1,56 @@
+name: DEVNIRA exact 7M genesis pot FRAME integration
+on:
+  push:
+    branches: [main]
+    paths:
+      - scripts/patch_exact_genesis_vesting.py
+      - scripts/test_exact_genesis_vesting.py
+      - tests/test_exact_genesis_pot_patch.py
+      - .github/workflows/exact-genesis-pot.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  exact-genesis-pot:
+    name: Real FRAME genesis-ED accounting and twelve-month payout tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run source-patch fail-closed Python regression tests
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/patch_exact_genesis_vesting.py scripts/test_exact_genesis_vesting.py
+          python3 -m unittest discover -s tests -p 'test_exact_genesis_pot_patch.py' -v
+      - name: Check out upstream FRAME runtime
+        run: |
+          git clone --depth 1 https://github.com/Quantus-Network/chain.git upstream
+          git -C upstream rev-parse HEAD | tee upstream-revision.txt
+      - name: Patch actual vesting pallet, test runtime, and runtime genesis-builder
+        run: |
+          set -euo pipefail
+          python3 scripts/patch_exact_genesis_vesting.py upstream
+          python3 scripts/test_exact_genesis_vesting.py upstream
+          grep -q 'type ExactGenesisFunding: Get<bool>' upstream/pallets/vesting/src/lib.rs
+          grep -q 'new_test_ext_exact' upstream/pallets/vesting/src/mock.rs
+          grep -q 'let pot_funding = if' upstream/runtime/src/genesis_config_presets/mod.rs
+          grep -q 'dvn_exact_pot_all_twelve_monthly_grants_mint_no_extra_ed' upstream/pallets/vesting/src/tests.rs
+          git -C upstream diff -- pallets/vesting/src runtime/src/configs/mod.rs runtime/src/genesis_config_presets/mod.rs > exact-pot-diff.patch
+      - name: Install Rust 1.93 and native dependencies
+        run: |
+          rustup toolchain install 1.93.0 --profile minimal
+          sudo apt-get update
+          sudo apt-get install -y clang libclang-dev llvm-dev libssl-dev pkg-config protobuf-compiler libprotobuf-dev cmake build-essential
+          echo "LIBCLANG_PATH=$(llvm-config --libdir)" >> "$GITHUB_ENV"
+      - name: Run real FRAME tests — 7M, 12 monthly claims, below-ED protection, ZK rollback
+        working-directory: upstream
+        run: |
+          cargo +1.93.0 test --locked -p pallet-vesting --lib dvn_exact_pot_ -- --nocapture
+      - name: Record exact-pot development integration evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: devnira-genesis-exact-pot-frame-candidate-NOT-MAINNET
+          path: |
+            upstream-revision.txt
+            exact-pot-diff.patch
+          if-no-files-found: error
