@@ -20,7 +20,7 @@
 A patched **upstream runtime development candidate** compiled and exposed RPC in previous GitHub Actions runs. This does not establish that DEVNIRA reward economics or vesting run on chain.
 
 ## Blockers requiring user action later
-Provide beneficiary **public** addresses and allocation split for the 10M DVN allocation. Never provide seed phrases or private keys.
+Allocation policy is **one company-controlled wallet** holding the entire 10M DVN founder allocation (3M available + 7M in 12 monthly grants). The verified independent DEVNIRA **public** address remains pending because the signing wallet and genesis are not finalized. Never provide seed phrases or private keys.
 
 ## Confirmed upstream amount-encoding blocker (2026-10-13)
 The upstream runtime uses `UNIT=1_000_000_000_000` (12 decimal places) and the upstream ZK leaf encoding uses `AMOUNT_SCALE_DOWN_FACTOR=10_000_000_000`. The approved DVN unit is `100_000_000` (8 decimals). The current patched development candidate only changes chain-spec *display* decimals, not the runtime or ZK circuit encoding. That candidate is **NOT economically compatible** with 8-decimal DVN.
@@ -45,3 +45,11 @@ The latest submitted screenshot shows **DEVNIRA on-chain monthly vesting integra
 The upstream vesting pallet permits treasury/root to `end_schedule` and `retarget_schedule` genesis grants, potentially defeating the advertised 7M-DVN founder lock. `scripts/protect_genesis_vesting.py` introduces an authenticated genesis-schedule count and rejects these two administrative actions on genesis grants. `scripts/test_genesis_vesting_protection.py` injects a FRAME test to verify before-cliff claims fail, administrator cancellation/retarget fail, and post-cliff payout succeeds. `stage2-genesis-vesting.yml` attempts automatic compile/test. **This is a development patch only; new CI outcome is not yet verified.** Existing upstream tests asserting cancellation/retarget of genesis schedules will need scope-appropriate reconciliation. Governance/runtime code upgrades still need security review.
 
 Still missing for **Stage 2 completion**: end-to-end 8-decimal ZK field and proof migration (beyond reference encoder); DVN runtime UNIT, fees, rewards, vesting quantum and issuance tests; real mainnet genesis funded by beneficiary **public keys** and exact 3M/7M split with no accidental extra issuance; reproducible pinned upstream source; two-node sync and GPU mining tests; Windows signed wallet and full testnet verification. No production release should be represented as complete yet.
+
+## Consolidated engineering review — 2026-10-14
+
+The reviewed upstream source confirms that `runtime/src/genesis_config_presets/mod.rs::genesis_template` endows multiple development accounts and allocates **vesting totals plus existential deposit** to the pot. The upstream vesting pallet enforces `pot balance == obligations + minimum_balance` at genesis and pays using `Preservation::Preserve`. With a strict 3M company liquid / 7M claimable lock / 10M minted at genesis requirement, that design needs a separately reviewed consensus change; simply setting token display decimals to 8 or suppressing checks does not fix it.
+
+The latest user-supplied verified green `four-component integration build #3` was a **development candidate**, not an active production V2 proof system or independent genesis. Its Windows artifact is a read-only node monitor and its GPU job runs reference/prerequisite tests without NVIDIA/AMD hardware. The active Poseidon2 leaf, matching aggregator/prover/verifier, production signing wallet, live two-node GPU mining and post-migration security review are outstanding.
+
+To prevent recurring confusion, `scripts/project_status.py` generates a machine-readable single-project summary with the approved parameters and explicit blockers. `verify.yml` uploads `devnira-project-status.json` after unit tests. **The new pipeline's success has not yet been confirmed**, and even a green result is not a mainnet approval.
