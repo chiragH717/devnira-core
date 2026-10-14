@@ -45,7 +45,7 @@ class ActualGenesisAuditTests(unittest.TestCase):
 
     def test_extra_issuance_rejected(self):
         spec, manifest = fixture()
-        spec["genesis"]["runtime"]["balances"]["balances"].append(["third-party",1])
+        spec["genesis"]["runtime"]["balances"]["balances"].append([encode_ss58_account(bytes([88] * 32)),1])
         with self.assertRaisesRegex(UnsafeGenesis, "exactly 10M"):
             audit_candidate(spec, ADDR, manifest)
 
@@ -64,7 +64,7 @@ class ActualGenesisAuditTests(unittest.TestCase):
     def test_unknown_company_address_rejected(self):
         spec, manifest = fixture()
         with self.assertRaisesRegex(UnsafeGenesis, "exactly 3M"):
-            audit_candidate(spec, "another-public-account", manifest)
+            audit_candidate(spec, encode_ss58_account(bytes([90] * 32)), manifest)
 
 if __name__ == "__main__":
     unittest.main()
