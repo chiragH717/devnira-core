@@ -1,0 +1,61 @@
+name: DEVNIRA native V2 aggregation proofs candidate
+on:
+  push:
+    branches: [main]
+    paths:
+      - scripts/patch_zk_v2_aggregation_amounts.py
+      - tests/test_zk_v2_aggregation_amounts.py
+      - .github/workflows/zk-v2-aggregation.yml
+      - config/upstream-pins.json
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  v2-batch-proofs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 85
+    steps:
+      - uses: actions/checkout@v4
+      - name: Python fail-closed patch integrity
+        run: |
+          python3 -m py_compile scripts/patch_zk_v2_aggregation_amounts.py
+          python3 -m unittest discover -s tests -p 'test_zk_v2_aggregation_amounts.py' -v
+      - name: Checkout upstream Plonky2 proof and aggregator source at exact audited SHA
+        run: |
+          set -euo pipefail
+          PIN=$(python3 -c 'import json;print(json.load(open("config/upstream-pins.json"))["zk_circuits"]["sha"])')
+          git clone --depth 1 https://github.com/Quantus-Network/qp-zk-circuits.git zk-circuits
+          git -C zk-circuits fetch --depth 1 origin "$PIN"
+          git -C zk-circuits checkout --detach "$PIN"
+          test "$(git -C zk-circuits rev-parse HEAD)" = "$PIN"
+          git -C zk-circuits rev-parse HEAD > zk-v2-aggregation-source-sha.txt
+      - name: Add native V2 proof-gadget to REAL private/public aggregation workspace
+        run: python3 scripts/patch_zk_v2_aggregation_amounts.py zk-circuits
+      - name: Install exact Rust 1.93.0
+        run: rustup toolchain install 1.93.0 --profile minimal
+      - name: Generate and verify REAL Plonky2 V2 batch proofs and reject invalid input/fee/oversupply
+        working-directory: zk-circuits
+        run: cargo +1.93.0 test --locked -p qp-wormhole-aggregator --lib dvn_v2_ -- --nocapture
+      - name: Confirm this proof candidate is not mistakenly linked into active V1 recursion
+        run: |
+          grep -q 'pub mod devnira_v2_segment;' zk-circuits/wormhole/aggregator/src/lib.rs
+          grep -q 'builder.range_check(final_sum, 32)' zk-circuits/wormhole/aggregator/src/private_batch/circuit/circuit_logic.rs
+          python3 - <<'PY'
+          from pathlib import Path
+          mod=Path("zk-circuits/wormhole/aggregator/src/devnira_v2_segment.rs").read_text()
+          assert "constrain_v2_native_amount(builder,total_in)" in mod
+          assert "constrain_v2_native_amount(builder,total_out)" in mod
+          assert "constrain_v2_native_amount(builder,total_fee)" in mod
+          print("V2 opt-in actual proof constraints pass but old recursive verifier and fee-rate policy still block mainnet.")
+          PY
+          {
+            echo '## Native DVN u64 aggregation Plonky2 proof candidate'
+            echo 'Native 54-bit private/public settlement conservation and total-supply constraints proved with real Plonky2.'
+            echo 'Active V1 recursive circuits, fee-rate verification and on-chain verifier remain untouched. No mainnet approval.'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Archive pinned upstream SHA
+        uses: actions/upload-artifact@v4
+        with:
+          name: DEVNIRA-ZK-V2-AGGREGATE-PROOF-SOURCE-NOT-MAINNET
+          path: zk-v2-aggregation-source-sha.txt
+          if-no-files-found: error
