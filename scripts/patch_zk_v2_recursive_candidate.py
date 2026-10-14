@@ -160,6 +160,48 @@ mod tests {
             "exceeds 100M DVN maximum");
     }
 
+    /// A malicious circuit may claim exactly the same seven PI positions,
+    /// but carry no native DVN amount conservation or Poseidon constraints.
+    /// Its self-valid proof MUST NOT be accepted by the fixed-key wrapper.
+    #[test]
+    fn dvn_v2_actual_recursive_rejects_foreign_key_with_identical_public_input_count() {
+        use std::panic::{catch_unwind,AssertUnwindSafe};
+        let f=leaf_fixture();
+        let mut outer_builder=CircuitBuilder::<F,D>::new(CircuitConfig::standard_recursion_config());
+        let targets=add_recursive_verifiers::<F,C,D>(
+            &mut outer_builder,&f.leaf.common,&f.leaf.verifier_only,1,
+        ).unwrap();
+        constrain_v2_public_batch_exits(
+            &mut outer_builder,&targets[0].public_inputs[4..6],
+        );
+        outer_builder.register_public_inputs(&targets[0].public_inputs);
+        let wrapper=outer_builder.build::<C>();
+
+        let mut attacker=CircuitBuilder::<F,D>::new(CircuitConfig::standard_recursion_config());
+        let bogus_pis:Vec<Target>=(0..V2_LEAF_PUBLIC_INPUT_LEN)
+            .map(|_|attacker.add_virtual_public_input()).collect();
+        let attacker_circuit=attacker.build::<C>();
+        let mut attacker_witness=PartialWitness::new();
+        for (idx,target) in bogus_pis.iter().enumerate(){
+            let val=if idx==4 {DVN_MAX} else if idx==5 {1} else {0};
+            attacker_witness.set_target(*target,F::from_canonical_u64(val)).unwrap();
+        }
+        let bogus=attacker_circuit.prove(attacker_witness)
+            .expect("attacker's unconstrained circuit proves trivially");
+        assert_eq!(bogus.public_inputs.len(),V2_LEAF_PUBLIC_INPUT_LEN);
+        // Attempt to substitute bogus proof into wrapper that pins a
+        // DIFFERENT real Poseidon-constrained inner verifier key.
+        let rejected=catch_unwind(AssertUnwindSafe(||{
+            let mut witness=PartialWitness::new();
+            witness.set_proof_with_pis_target(&targets[0],&bogus).unwrap();
+            wrapper.prove(witness)
+        }));
+        assert!(
+            rejected.is_err()||rejected.unwrap().is_err(),
+            "FOREIGN VERIFIER KEY SUBSTITUTION ACCEPTED"
+        );
+    }
+
     #[test]
     fn dvn_v2_recursive_refuses_wrong_inner_public_input_layout() {
         let mut builder=CircuitBuilder::<F,D>::new(CircuitConfig::standard_recursion_config());
