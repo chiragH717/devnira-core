@@ -13,7 +13,7 @@ MARKER = "fn dvn_v2_native_leaf_matches_native_qp_poseidon_core()"
 TEST = r'''
 #[cfg(test)]
 mod devnira_cross_layer_leaf_tests {
-    use super::devnira_v2_amount_circuit::{constrain_native_dvn_leaf_hash, DVN_NATIVE_MAX};
+    use super::{constrain_native_dvn_leaf_hash, DVN_NATIVE_MAX};
     use plonky2::{
         field::types::{Field, PrimeField64},
         iop::witness::{PartialWitness, WitnessWrite},
