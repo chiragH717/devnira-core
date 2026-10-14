@@ -58,7 +58,7 @@ jobs:
         run: python3 scripts/patch_zk_v2_aggregation_amounts.py zk-circuits
       - name: Compile actual DVN V2 leaf amount range gadget
         working-directory: zk-circuits
-        run: cargo +1.93.0 test --locked -p qp-wormhole-circuit --lib dvn_ -- --nocapture
+        run: cargo +1.93.0 test -p qp-wormhole-circuit --lib dvn_ -- --nocapture
       - name: Test modified actual wormhole public-input Rust crate
         working-directory: zk-circuits
         run: cargo +1.93.0 test --locked -p qp-wormhole-inputs --lib dvn_v2 -- --nocapture
@@ -80,6 +80,10 @@ jobs:
           rustup target add wasm32v1-none --toolchain 1.93.0
           cd zk-circuits
           cargo +1.93.0 check --locked -p qp-wormhole-inputs --no-default-features --target wasm32v1-none
+      - name: Audit exact opt-in development lockfile delta
+        run: |
+          git -C zk-circuits diff -- Cargo.lock | head -100
+          echo 'Source SHA pinned; patched crate introduces an opt-in workspace dependency and may update Cargo.lock.' >> "$GITHUB_STEP_SUMMARY"
       - name: Upload exact upstream source revision
         uses: actions/upload-artifact@v4
         with:
