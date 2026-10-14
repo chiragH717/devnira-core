@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="DEVNIRA (DVN): an independent, GPU-mineable Layer-1 blockchain in pre-release development. Verifiable specifications and honest progress.">
+  <meta name="theme-color" content="#0c1222">
+  <title>DEVNIRA | GPU-mineable Layer 1 — Development</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="top"><div class="wrap nav">
+    <a class="brand" href="#home"><span class="mark">D</span> DEVNIRA <small>DVN</small></a>
+    <nav aria-label="Primary navigation">
+      <a href="#economics">Tokenomics</a><a href="#mining">GPU mining</a>
+      <a href="#wallet">Wallets</a><a href="#explorer">Explorer</a>
+      <a href="#roadmap">Roadmap</a><a href="#docs">Docs</a>
+    </nav>
+  </div></header>
+  <main id="main">
+    <section id="home" class="hero wrap">
+      <p class="eyebrow">INDEPENDENT LAYER 1 • IN DEVELOPMENT</p>
+      <h1>A GPU-mineable blockchain, built with verifiable engineering.</h1>
+      <p class="lead">DEVNIRA (DVN) is an independent QPoW/Poseidon2 Layer-1 project. Core proof candidates and development builds have passed selected tests, but the independent 8-decimal chain is not live.</p>
+      <div class="notice" role="status"><strong>Pre-release — NOT mainnet.</strong> No publicly verified DVN mainnet, live GPU rewards, production wallet or transferable DVN balances exist yet. Do not send assets to test addresses.</div>
+      <p><a class="cta" href="https://github.com/chiragH717/devnira-core">Review open-source code ↗</a> <a class="quiet-link" href="#roadmap">See release blockers ↓</a></p>
+    </section>
+    <section id="economics" class="wrap section">
+      <p class="eyebrow">TRANSPARENT SUPPLY</p><h2>Exact DVN economics</h2>
+      <div class="metrics">
+        <div><strong>100,000,000</strong><span>Maximum DVN supply</span></div>
+        <div><strong>90%</strong><span>Reserved for mining (90M DVN)</span></div>
+        <div><strong>10%</strong><span>Company treasury (10M DVN)</span></div>
+        <div><strong>12 sec</strong><span>Target block time</span></div>
+      </div>
+      <p>8 decimal places. Initial reward: 5 DVN per block, declining 0.25% every 50,000 blocks until the mining allocation cap. Company policy: 3M liquid at independent genesis and 7M locked over 12 calendar-month installments. All depend on an audited, yet-to-be-launched chain.</p>
+      <div class="allocation"><span class="mining">90% mining</span><span class="treasury">10% treasury</span></div>
+    </section>
+    <section id="mining" class="wrap section cols">
+      <div><p class="eyebrow">PROOF OF WORK</p><h2>GPU-first engineering</h2><p>Candidate miners compile for NVIDIA CUDA and AMD Vulkan/wgpu. Actual DVN mining on physical hardware and a two-node independent network remain unverified.</p><p class="detail">Mining pool shares, payouts and external miner endpoints are not active. Never enter wallet recovery phrases into miner software.</p></div>
+      <div class="panel"><h3>Current mining availability</h3><p class="emphasis">Not live</p><p>GPU source tests ≠ earned DVN rewards.</p><a href="https://github.com/chiragH717/devnira-core/actions/workflows/gpu-miner-source.yml">Source build evidence ↗</a></div>
+    </section>
+    <section id="wallet" class="wrap section">
+      <p class="eyebrow">SECURE OWNERSHIP</p><h2>Wallet software</h2>
+      <div class="cards"><article class="panel"><h3>Windows</h3><p>Read-only receive/balance preview compiled. Sending and protected custody are not implemented.</p><span class="tag">PREVIEW ONLY</span><p><a href="https://github.com/chiragH717/devnira-core/actions/workflows/windows-wallet-preview.yml">Review preview builds ↗</a></p></article>
+      <article class="panel"><h3>Android</h3><p>Secure signing, recovery, app release and verified genesis integration remain pending.</p><span class="tag">NOT RELEASED</span></article></div>
+    </section>
+    <section id="explorer" class="wrap section">
+      <p class="eyebrow">CHAIN TRANSPARENCY</p><h2>Development block lookup</h2>
+      <p>This lookup only connects to a separately configured, genesis-pinned DVN development RPC via a same-origin API. No fake blocks or balances are displayed.</p>
+      <div class="panel">
+        <p><strong>RPC identity:</strong> <span id="node-status" aria-live="polite">Not connected</span></p>
+        <form id="block-form"><label for="height">Block height</label><div class="search"><input id="height" type="number" min="0" step="1" inputmode="numeric" placeholder="Enter block height" required><button type="submit">Search block</button></div></form>
+        <pre id="block-output" aria-live="polite">Read-only block lookup; no data loaded.</pre>
+      </div>
+      <p class="detail">Raw SCALE extrinsics are not decoded or indexed. There is no production explorer, address search or live supply dashboard yet.</p>
+    </section>
+    <section id="roadmap" class="wrap section">
+      <p class="eyebrow">DEVELOPMENT ROADMAP</p><h2>Evidence before launch</h2>
+      <ol class="timeline"><li><strong>ZK V2 migration</strong><span>Recursive proof candidates tested; active settlement, membership and anti-replay pending</span></li>
+      <li><strong>8-decimal independent genesis</strong><span>Requires coherent verifier/runtime and secure company public address</span></li>
+      <li><strong>Signing wallets + two-node testnet</strong><span>Windows/Android protected signing and real CUDA/AMD tests pending</span></li>
+      <li><strong>Public products and audits</strong><span>Explorer indexer, validated pool, services, independent security review and release pending</span></li></ol>
+    </section>
+    <section id="docs" class="wrap section">
+      <h2>Documentation and verification</h2>
+      <p><a href="https://github.com/chiragH717/devnira-core/blob/main/docs/MASTER_ROADMAP.md">Full project roadmap ↗</a> ·
+      <a href="https://github.com/chiragH717/devnira-core/blob/main/docs/FOUR_POINT_STATUS.md">Technical progress ↗</a> ·
+      <a href="https://github.com/chiragH717/devnira-core/actions">GitHub Actions tests ↗</a></p>
+      <p class="detail">The devnira.co domain and hosting/TLS deployment have not been verified. This source website does not represent an active public service.</p>
+    </section>
+  </main>
+  <footer><div class="wrap"><strong>DEVNIRA · DVN</strong><p>Development software only. No investment, mining revenue or network availability guarantees. © 2026 DEVNIRA project.</p></div></footer>
+  <script src="app.js" defer></script>
+</body>
+</html>
