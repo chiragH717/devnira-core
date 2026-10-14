@@ -41,6 +41,7 @@ const DEFAULT_PATH: &str = "m/44'/189189'/0'/0'/0'";
         self.genesis.parent.mkdir(parents=True)
         self.genesis.write_text("sp_core::crypto::Ss58AddressFormat::custom(189)\n")
         self.configs=self.root/"runtime/src/configs/mod.rs"
+        self.configs.parent.mkdir(parents=True, exist_ok=True)
         self.configs.write_text("pub const SS58Prefix: u8 = 189;\n")
         self.cli.write_text("\tQuantus {\n")
         self.command.write_text(cmd)
