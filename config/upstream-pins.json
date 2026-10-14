@@ -10,5 +10,10 @@
     "purpose": "Audited Plonky2 reference/proof source baseline"
   },
   "rust_toolchain": "1.93.0",
-  "note": "Pins are tested source revisions, NOT approval of upstream tokenomics or DVN production readiness."
+  "note": "Pins are tested source revisions, NOT approval of upstream tokenomics or DVN production readiness.",
+  "gpu_miner": {
+    "repository": "Quantus-Network/quantus-miner",
+    "sha": "c7838cbc86f7d74477da1771139f377a8e438072",
+    "purpose": "Reproducible upstream CUDA and WGPU (Vulkan/DX12) QPoW miner candidate; hardware and DEVNIRA network compatibility not yet verified"
+  }
 }
