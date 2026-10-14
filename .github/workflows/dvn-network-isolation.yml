@@ -1,0 +1,93 @@
+name: DEVNIRA foreign-network isolation and native node build
+on:
+  push:
+    branches: [main]
+    paths:
+      - scripts/guard_dvn_network_identity.py
+      - scripts/prepare_upstream.py
+      - tests/test_guard_dvn_network_identity.py
+      - .github/workflows/dvn-network-isolation.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  devnira-network:
+    name: Compile node and reject all inherited Quantus chain ids
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Python fail-closed foreign-genesis selector tests
+        run: |
+          python3 -m unittest discover -s tests -p 'test_guard_dvn_network_identity.py' -v
+          python3 -m py_compile scripts/prepare_upstream.py scripts/guard_dvn_network_identity.py
+      - name: Fetch exact audited Quantus baseline
+        run: |
+          set -euo pipefail
+          PIN=$(python3 -c 'import json;print(json.load(open("config/upstream-pins.json"))["upstream_chain"]["sha"])')
+          git clone --depth 1 https://github.com/Quantus-Network/chain.git upstream
+          git -C upstream fetch --depth 1 origin "$PIN"
+          git -C upstream checkout --detach "$PIN"
+          test "$(git -C upstream rev-parse HEAD)" = "$PIN"
+          git -C upstream rev-parse HEAD > dvn-foreign-network-source-sha.txt
+      - name: Patch development identity AND foreign-chain selector guard atomically
+        run: |
+          python3 scripts/prepare_upstream.py upstream
+          grep -q 'with_id("devnira-local")' upstream/node/src/chain_spec.rs
+          grep -q 'with_protocol_id("devnira-local-v1")' upstream/node/src/chain_spec.rs
+          grep -q 'DEVNIRA PRE-RELEASE: only --chain dev or --chain devnira-local' upstream/node/src/command.rs
+      - name: Rust and native toolchain dependencies
+        run: |
+          rustup toolchain install 1.93.0 --profile minimal
+          rustup target add wasm32v1-none --toolchain 1.93.0
+          sudo apt-get update
+          sudo apt-get install -y clang libclang-dev llvm-dev libssl-dev pkg-config protobuf-compiler libprotobuf-dev cmake build-essential
+          echo "LIBCLANG_PATH=$(llvm-config --libdir)" >> "$GITHUB_ENV"
+      - name: Build native DEVNIRA pre-release node with actual embedded runtime WASM
+        working-directory: upstream
+        run: cargo +1.93.0 build --release --locked -p quantus-node
+      - name: Prove one local DVN dev candidate works and all inherited live network IDs are blocked
+        run: |
+          set -euo pipefail
+          NODE=upstream/target/release/quantus-node
+          "$NODE" build-spec --chain dev --disable-default-bootnode > dvn-isolated-local-spec.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('dvn-isolated-local-spec.json'))
+          assert d['id']=='devnira-local', d['id']
+          assert d['properties']['tokenSymbol']=='DVN'
+          assert d['properties']['ss58Format']==190
+          assert d['properties']['tokenDecimals']==12, '12-decimal until V2 runtime'
+          print('PASS: only pre-release DEVNIRA development spec; no mainnet token claim')
+          PY
+          for CHAIN in mainnet mainnet_live_spec planck planck_live_spec heisenberg heisenberg_live_spec 'devnira-mainnet-v1'; do
+            if "$NODE" build-spec --chain "$CHAIN" > /tmp/dvn-foreign-spec.out 2>&1; then
+              echo "SECURITY FAILURE: foreign chain '$CHAIN' was accepted" >&2
+              exit 1
+            fi
+            grep -q 'DEVNIRA pre-release refuses chain' /tmp/dvn-foreign-spec.out
+            echo "PASS blocked foreign chain: $CHAIN"
+          done
+          if "$NODE" build-spec --chain dvn-isolated-local-spec.json > /tmp/dvn-unapproved-file.out 2>&1; then
+            echo 'SECURITY FAILURE: unapproved arbitrary --chain JSON accepted' >&2
+            exit 1
+          fi
+          grep -q 'DEVNIRA pre-release refuses chain' /tmp/dvn-unapproved-file.out
+          if "$NODE" build-spec > /tmp/dvn-no-default.out 2>&1; then
+            echo 'SECURITY FAILURE: inherited Quantus default without --chain accepted' >&2
+            exit 1
+          fi
+          {
+            echo '## DEVNIRA development network isolation'
+            echo 'Node/native WASM built from pinned source; --chain dev accepted.'
+            echo 'Foreign Quantus Mainnet/Planck/Heisenberg, missing default, and arbitrary chain JSON all rejected.'
+            echo 'NOT independent eight-decimal DVN genesis; no production networking evidence.'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Archive isolated 12-decimal DEVELOPMENT spec and revision only
+        uses: actions/upload-artifact@v4
+        with:
+          name: DEVNIRA-local-network-isolated-candidate-NOT-MAINNET
+          path: |
+            dvn-isolated-local-spec.json
+            dvn-foreign-network-source-sha.txt
+          if-no-files-found: error
