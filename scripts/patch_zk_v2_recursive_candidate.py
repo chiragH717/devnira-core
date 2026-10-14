@@ -61,6 +61,8 @@ pub fn build_v2_leaf_recursive_wrapper(
 /// Poseidon2 leaf proofs. This is NOT Quantus's production private-batch tree.
 /// Every leaf's exact hash, payouts, and fee remain public inputs; the two
 /// final public inputs bind the combined native payouts and fees.
+/// Duplicate Poseidon2 input commitments are forbidden *inside* one batch.
+/// This is NOT chain-level nullifier replay protection.
 ///
 /// Public layout: [leaf0 7 PIs, ..., leafN 7 PIs, total_payout, total_fee].
 /// Verifying leaf conservation alone does not prevent replay or prove tree
@@ -79,6 +81,25 @@ pub fn build_v2_multi_leaf_recursive_batch(
     let proofs=add_recursive_verifiers::<F,C,D>(
         &mut builder,&inner.common,&inner.verifier_only,num_leaves,
     )?;
+    // Each proof commits its spent input leaf to a four-felt Poseidon2
+    // digest. Reusing the same valid inner proof twice would otherwise
+    // multiply a spend inside this opt-in batch. Compare all four felts,
+    // reject exact equality, and keep the checks inside the proven circuit.
+    // The active protocol still requires root membership, per-spend
+    // nullifiers, and a persistent on-chain UsedNullifiers set.
+    for i in 0..num_leaves {
+        for j in (i+1)..num_leaves {
+            let mut same_commitment=builder.one();
+            for limb in 0..4 {
+                let eq=builder.is_equal(
+                    proofs[i].public_inputs[limb],
+                    proofs[j].public_inputs[limb],
+                );
+                same_commitment=builder.mul(same_commitment,eq.target);
+            }
+            builder.assert_zero(same_commitment);
+        }
+    }
     let mut outputs=Vec::with_capacity(num_leaves*2);
     let mut total_fee=builder.zero();
     for proof in &proofs {
@@ -270,6 +291,25 @@ mod tests {
         let rejected=catch_unwind(AssertUnwindSafe(||batch.prove(overcap)));
         assert!(rejected.is_err()||rejected.unwrap().is_err(),
             "two valid leaves must not inflate batch payout past DVN cap");
+    }
+
+    /// A real self-verifiable leaf proof duplicated into two slots MUST fail.
+    /// This catches inflation within the recursive candidate; distinct
+    /// withdrawals of one spend across separate batches still need chain
+    /// nullifiers and root authorization.
+    #[test]
+    fn dvn_v2_batch_rejects_same_spent_leaf_proof_twice() {
+        use std::panic::{catch_unwind,AssertUnwindSafe};
+        let f=leaf_fixture();
+        let (batch,targets)=build_v2_multi_leaf_recursive_batch(&f.leaf,2).unwrap();
+        let original=prove_leaf(&f,500_000_000,300_000_001,199_999_998,1).unwrap();
+        f.leaf.verify(original.clone()).expect("inner leaf itself must be valid");
+        let mut witness=PartialWitness::new();
+        witness.set_proof_with_pis_target(&targets[0],&original).unwrap();
+        witness.set_proof_with_pis_target(&targets[1],&original).unwrap();
+        let rejected=catch_unwind(AssertUnwindSafe(||batch.prove(witness)));
+        assert!(rejected.is_err()||rejected.unwrap().is_err(),
+            "DUPLICATE V2 SPENT LEAF PROOF MUST NEVER MINT TWICE");
     }
 
     #[test]
