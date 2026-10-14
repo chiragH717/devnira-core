@@ -36,20 +36,29 @@ class CompanyCustodyTests(unittest.TestCase):
 
     @patch("spec.verify_company_custody._run_native")
     def test_native_crypto_signature_and_public_account_both_required(self, native):
-        native.side_effect=["Signature verifies correctly.\n",
-            '{"ss58Address": "'+ADDR+'"}']
+        native.return_value="Signature verifies correctly.\n"
         result=verify_company_certificate(self.certificate,self.node,self.digest,now=NOW)
         self.assertEqual(result["company_address"],ADDR)
         self.assertTrue(result["ownership_signature_verified"])
-        self.assertEqual(native.call_count,2)
-        self.assertEqual(native.call_args_list[0].args[1],"verify")
-        self.assertEqual(native.call_args_list[1].args[1],"inspect")
+        native.assert_called_once()
+        args=native.call_args.args
+        self.assertEqual(args[1],"devnira-verify")
+        self.assertEqual(args[args.index("--expected-address")+1],ADDR)
+        self.assertEqual(args[args.index("--public-key")+1],self.certificate["public_key_hex"])
 
     @patch("spec.verify_company_custody._run_native")
     def test_public_key_not_bound_to_company_address_rejected(self, native):
-        native.side_effect=["Signature verifies correctly.\n",
-            '{"ss58Address": "'+OTHER+'"}']
-        with self.assertRaisesRegex(UnverifiedCustody,"does not derive"):
+        # Native CLI rejects a signature whose public key derives another
+        # address. Its nonzero exit code is fail-closed in _run_native.
+        native.side_effect=UnverifiedCustody(
+            "Native DEVNIRA signature/address verification failed")
+        with self.assertRaises(UnverifiedCustody):
+            verify_company_certificate(self.certificate,self.node,self.digest,now=NOW)
+
+    @patch("spec.verify_company_custody._run_native")
+    def test_unexpected_verifier_stdout_is_not_proof(self,native):
+        native.return_value="unrecognized subcommand or mock SUCCESS"
+        with self.assertRaisesRegex(UnverifiedCustody,"did not confirm"):
             verify_company_certificate(self.certificate,self.node,self.digest,now=NOW)
 
     @patch("spec.verify_company_custody._run_native")
