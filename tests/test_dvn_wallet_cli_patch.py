@@ -40,6 +40,8 @@ const DEFAULT_PATH: &str = "m/44'/189189'/0'/0'/0'";
         self.genesis=self.root/"runtime/src/genesis_config_presets/mod.rs"
         self.genesis.parent.mkdir(parents=True)
         self.genesis.write_text("sp_core::crypto::Ss58AddressFormat::custom(189)\n")
+        self.configs=self.root/"runtime/src/configs/mod.rs"
+        self.configs.write_text("pub const SS58Prefix: u8 = 189;\n")
         self.cli.write_text("\tQuantus {\n")
         self.command.write_text(cmd)
 
@@ -72,6 +74,7 @@ const DEFAULT_PATH: &str = "m/44'/189189'/0'/0'/0'";
         self.assertEqual(self.cli.read_text(),"\tQuantus {\n")
         self.assertIn("m/44\u0027/189189\u0027/0\u0027/0\u0027/0\u0027", self.crypto.read_text())
         self.assertIn("custom(189)", self.genesis.read_text())
+        self.assertIn("SS58Prefix: u8 = 189;", self.configs.read_text())
 
 if __name__=="__main__":
     unittest.main()
