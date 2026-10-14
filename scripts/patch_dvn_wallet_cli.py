@@ -29,9 +29,11 @@ def patch(root: Path) -> None:
     command_file = root / "node/src/command.rs"
     cli_file = root / "node/src/cli.rs"
     crypto_file = root / "primitives/dilithium-crypto/src/scheme_macro.rs"
+    genesis_file = root / "runtime/src/genesis_config_presets/mod.rs"
     cmd = command_file.read_text()
     cli = cli_file.read_text()
     crypto = crypto_file.read_text()
+    genesis = genesis_file.read_text()
 
     cmd = replace_exact(cmd,
         "SensitiveBytes64, QUANTUS_DILITHIUM_CHAIN_ID,\n\tQUANTUS_WORMHOLE_CHAIN_ID,",
@@ -81,10 +83,17 @@ def patch(root: Path) -> None:
         "const DEFAULT_PATH: &str = \"m/44'/189189'/0'/0'/0'\";",
         "const DEFAULT_PATH: &str = \"m/44'/900190'/0'/0'/0'\";")
 
+    # All public accounts in the genesis CLI/preset must use the same SS58
+    # namespace as node RPC and offline native Dilithium87 wallet addresses.
+    genesis = replace_exact(genesis,
+        "sp_core::crypto::Ss58AddressFormat::custom(189)",
+        "sp_core::crypto::Ss58AddressFormat::custom(190)")
+
     # Script is fail-closed: commit all file contents only after all checks.
     command_file.write_text(cmd)
     cli_file.write_text(cli)
     crypto_file.write_text(crypto)
+    genesis_file.write_text(genesis)
     print("Patched native Rust node CLI and Dilithium sign path: key devnira, HD isolation, SS58 190, terminal-only new keys.")
     print("NOT COMPLETE: secure transaction signing, key-store encryption and independent DVN genesis not established.")
 
