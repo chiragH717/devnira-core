@@ -42,6 +42,8 @@ jobs:
           git -C zk-circuits checkout --detach "$PIN"
           test "$(git -C zk-circuits rev-parse HEAD)" = "$PIN"
           git -C zk-circuits rev-parse HEAD | tee zk-source-revision.txt
+      - name: Install pinned Rust compiler before all ZK proof jobs
+        run: rustup toolchain install 1.93.0 --profile minimal
       - name: Apply DVN exact amount V2 input patch
         run: python3 scripts/patch_zk_proof_inputs_v2.py zk-circuits
       - name: Inject bounded 8-decimal amount gadget into actual Plonky2 circuit source
@@ -56,10 +58,10 @@ jobs:
         run: python3 scripts/patch_zk_v2_aggregation_amounts.py zk-circuits
       - name: Compile actual DVN V2 leaf amount range gadget
         working-directory: zk-circuits
-        run: cargo test -p qp-wormhole-circuit --lib dvn_ -- --nocapture
+        run: cargo +1.93.0 test --locked -p qp-wormhole-circuit --lib dvn_ -- --nocapture
       - name: Test modified actual wormhole public-input Rust crate
         working-directory: zk-circuits
-        run: cargo test -p qp-wormhole-inputs --lib dvn_v2 -- --nocapture
+        run: cargo +1.93.0 test --locked -p qp-wormhole-inputs --lib dvn_v2 -- --nocapture
       - name: Prove exact 8-decimal private/public aggregate and overflow-safe BPS on real Plonky2
         working-directory: zk-circuits
         run: cargo +1.93.0 test --locked -p qp-wormhole-aggregator --lib dvn_v2_ -- --nocapture
