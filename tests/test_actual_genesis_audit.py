@@ -5,9 +5,10 @@ from spec.audit_actual_genesis import audit_candidate, UnsafeGenesis, GENESIS_LO
 from spec.genesis_manifest import build_manifest
 from spec.genesis_allocations import Beneficiary
 from spec.ss58_company_account import encode_ss58_account
+from spec.vesting_pot import vesting_pot_ss58
 
 ADDR = encode_ss58_account(bytes(range(1, 33)))
-POT = encode_ss58_account(bytes([44] * 32))
+POT = vesting_pot_ss58()
 
 def fixture():
     manifest = build_manifest(datetime(2027, 1, 31, 12, tzinfo=timezone.utc),
@@ -53,6 +54,23 @@ class ActualGenesisAuditTests(unittest.TestCase):
         spec, manifest = fixture()
         spec["genesis"]["runtime"]["vesting"]["schedules"][0][4] += 1
         with self.assertRaisesRegex(UnsafeGenesis, "differ"):
+            audit_candidate(spec, ADDR, manifest)
+
+    def test_arbitrary_balanced_escrow_cannot_masquerade_as_frame_pot(self):
+        spec, manifest = fixture()
+        fake = encode_ss58_account(bytes([44] * 32))
+        manifest["onchain_vesting_pot_address"] = fake
+        spec["genesis"]["runtime"]["balances"]["balances"][1][0] = fake
+        with self.assertRaisesRegex(UnsafeGenesis, "wrong sovereign FRAME"):
+            audit_candidate(spec, ADDR, manifest)
+
+    def test_quantus_pot_ss58_prefix_cannot_masquerade_as_dvn(self):
+        spec, manifest = fixture()
+        from spec.vesting_pot import vesting_pot_account_id
+        foreign = encode_ss58_account(vesting_pot_account_id(), prefix=189)
+        manifest["onchain_vesting_pot_address"] = foreign
+        spec["genesis"]["runtime"]["balances"]["balances"][1][0] = foreign
+        with self.assertRaisesRegex(UnsafeGenesis, "invalid DEVNIRA genesis"):
             audit_candidate(spec, ADDR, manifest)
 
     def test_pot_existential_deposit_is_consensus_blocker(self):
