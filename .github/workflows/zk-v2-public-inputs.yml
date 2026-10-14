@@ -1,0 +1,72 @@
+name: DEVNIRA ZK V2 full-width proof public inputs candidate
+on:
+  push:
+    branches: [main]
+    paths:
+      - scripts/patch_zk_v2_public_input_parser.py
+      - tests/test_zk_v2_public_input_parser.py
+      - config/upstream-pins.json
+      - .github/workflows/zk-v2-public-inputs.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  v2-public-inputs:
+    name: Compile exact-u64 leaf, private and public aggregation decoders
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fail-closed source patch tests
+        run: |
+          python3 -m unittest discover -s tests -p 'test_zk_v2_public_input_parser.py' -v
+          python3 -m compileall -q scripts tests
+      - name: Checkout pinned external proof stack
+        run: |
+          set -euo pipefail
+          PIN=$(python3 -c 'import json;print(json.load(open("config/upstream-pins.json"))["zk_circuits"]["sha"])')
+          git clone --depth 1 https://github.com/Quantus-Network/qp-zk-circuits.git zk-circuits
+          git -C zk-circuits fetch --depth 1 origin "$PIN"
+          git -C zk-circuits checkout --detach "$PIN"
+          test "$(git -C zk-circuits rev-parse HEAD)" = "$PIN"
+          git -C zk-circuits rev-parse HEAD > zk-v2-parser-source-sha.txt
+      - name: Inject V2 exact-u64 leaf/private/public batch parser in REAL upstream crate
+        run: |
+          python3 scripts/patch_zk_v2_public_input_parser.py zk-circuits
+          grep -q 'pub input_amount: u32' zk-circuits/wormhole/inputs/src/lib.rs
+          grep -q 'pub mod devnira_v2_public_inputs;' zk-circuits/wormhole/inputs/src/lib.rs
+      - name: Install pinned Rust toolchain and no-std target
+        run: |
+          rustup toolchain install 1.93.0 --profile minimal
+          rustup target add wasm32v1-none --toolchain 1.93.0
+      - name: Prove native-u64 1-unit precision and reject inflation/oversupply across all three PI layers
+        working-directory: zk-circuits
+        run: cargo +1.93.0 test --locked -p qp-wormhole-inputs --lib dvn_v2_ -- --nocapture
+      - name: Compile real parser crate for WASM/no_std without default std
+        working-directory: zk-circuits
+        run: cargo +1.93.0 check --locked -p qp-wormhole-inputs --no-default-features --target wasm32v1-none
+      - name: Validate current V1 code stays separate; no live V2 release
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          inputs=Path("zk-circuits/wormhole/inputs/src/lib.rs").read_text()
+          codec=Path("zk-circuits/wormhole/inputs/src/devnira_v2_public_inputs.rs").read_text()
+          assert "pub input_amount: u32" in inputs, "V1 must remain intact until atomic upgrade"
+          for needle in ("pub input_amount: u64","pub output_amount_1: u64",
+                         "DvnV2PrivateBatchPublicInputs","DvnV2PublicBatchPublicInputs",
+                         "bound_aggregate_total","DVN_GOLDILOCKS_PRIME"):
+              assert needle in codec, needle
+          print("PASS: source compilation candidate only; active prover, verifier and on-chain runtime unchanged")
+          PY
+          {
+            echo '## DEVNIRA V2 public-input codec candidate — source gate'
+            echo 'Native and no_std compile + V2 parser tests require green; still NOT an active verifier upgrade.'
+            echo 'The existing V1 proof verifier, leaf and chain use incompatible u32/quantized amount models.'
+            echo 'Full production enablement requires V2 leaf/recursive verifier artifact, Poseidon root, withdrawal semantics, miner economics and independent 8-decimal genesis.'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Archive exact external proof source SHA
+        uses: actions/upload-artifact@v4
+        with:
+          name: DEVNIRA-ZK-V2-U64-PARSER-CANDIDATE-NOT-MAINNET
+          path: zk-v2-parser-source-sha.txt
+          if-no-files-found: error
