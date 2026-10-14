@@ -142,6 +142,46 @@ jobs:
             exit 1
           fi
           echo 'PASS: recovered DEVNIRA Dilithium87 test key signs and verifies the original challenge only.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Prove PUBLIC test signer actually controls address and generate exact 3M plus 7M genesis manifest
+        run: |
+          set -euo pipefail
+          # Only the published upstream TEST mnemonic is used. Production keys
+          # must never be generated or passed through GitHub Actions.
+          umask 077
+          recovery_file=$(mktemp)
+          trap 'rm -f "$recovery_file"' EXIT
+          printf '%s\n' 'bottom drive obey lake curtain smoke basket hold race lonely fit walk' > "$recovery_file"
+          address=$(sed -n 's/^Address: //p' dvn-public-cli.txt)
+          pub=$(sed -n 's/^Pub key: //p' dvn-public-cli.txt)
+          test -n "$address"
+          test -n "$pub"
+          python3 scripts/prepare_company_genesis_custody.py challenge --company-public-address "$address" --output devnira-test-challenge.json
+          message=$(python3 -c 'import json;print(json.load(open("devnira-test-challenge.json"))["message"])')
+          signature=$(upstream/target/release/quantus-node key sign --suri "$recovery_file" --message "$message")
+          PUBLIC_KEY="$pub" SIGNATURE="$signature" python3 - <<'PY'
+          import json,os
+          data=json.load(open('devnira-test-challenge.json'))
+          data['public_key_hex']=os.environ['PUBLIC_KEY']
+          data['signature_hex']=os.environ['SIGNATURE']
+          with open('devnira-test-public-certificate.json','w') as f: json.dump(data,f)
+          PY
+          sha=$(sha256sum upstream/target/release/quantus-node | cut -d ' ' -f1)
+          launch=$(python3 -c 'from datetime import datetime,timedelta,timezone;print((datetime.now(timezone.utc)+timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%S+00:00"))')
+          python3 scripts/prepare_company_genesis_custody.py manifest \
+            --signed-public-certificate devnira-test-public-certificate.json \
+            --trusted-node-binary upstream/target/release/quantus-node \
+            --trusted-node-sha256 "$sha" --genesis-utc "$launch" \
+            --output devnira-test-offchain-genesis-plan.json
+          python3 - <<'PY'
+          import json
+          p=json.load(open('devnira-test-offchain-genesis-plan.json'))
+          assert p['production_genesis'] is False
+          assert p['company_address_verified'] is True
+          assert p['instant_total_units']==3_000_000*100_000_000
+          assert p['locked_total_units']==7_000_000*100_000_000
+          assert len(p['runtime_vesting_schedules_absolute_ms'])==12
+          print('PASS: published TEST key signs company challenge; native verifier resolves same DVN address; 3M/7M plan matches.')
+          PY
       - name: Reject unattended generation of company wallet secrets
         run: |
           set -euo pipefail
