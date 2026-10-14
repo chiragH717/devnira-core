@@ -19,6 +19,9 @@ class ZkLeafAmountPatchTests(unittest.TestCase):
         self.assertIn("builder.range_check(amount, DVN_BITS)", source)
         self.assertIn("enforce_target_less_than_const(builder, amount, exclusive, DVN_BITS)", source)
         self.assertIn("for amount in [input, output_1, output_2]", source)
+        self.assertIn("pub fn constrain_native_dvn_leaf_hash", source)
+        self.assertIn("builder.poseidon2_hash_no_pad(felts)", source)
+        self.assertIn("dvn_v2_native_poseidon_leaf_proof_commits_single_base_units", source)
     def test_refuses_duplicate(self):
         patch(self.root)
         with self.assertRaisesRegex(ValueError, "already applied"):
