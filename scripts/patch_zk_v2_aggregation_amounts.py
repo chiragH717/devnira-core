@@ -15,7 +15,7 @@ RUST=r'''//! DEVNIRA V2 native exact-value recursive batch building block (inact
 //! membership, nullifier uniqueness/settlement, fee-rate logic, recursive
 //! wrappers, public-output binding and matching on-chain pinned artifacts.
 //! This module is a real Plonky2 constraint/proof candidate, NOT live V2.
-use plonky2::iop::target::Target;
+use plonky2::{field::types::Field, iop::target::Target};
 use zk_circuits_common::{
     circuit::{F, D},
     gadget_builder::GadgetBuilder,
