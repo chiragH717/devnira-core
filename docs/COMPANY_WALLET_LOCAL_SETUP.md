@@ -69,3 +69,33 @@ company **public** account and staged immutable 3M liquid + 7M locked /
 activate V2, prove governance immutability, sign an extrinsic, install a
 wallet, issue coins, or deploy a blockchain. Those remain separate Stage 2
 implementation and third-party review gates.
+
+## Windows GUI company wallet provisioning candidate (2026-10-14)
+
+The Windows GitHub Actions workflow produces an unsigned pre-release app named
+`DEVNIRA-Company-Wallet-Setup-NO-SEND.exe`. It includes an **Offline Company Wallet**
+tab independently of the inactive mainnet's RPC. You must separately compile,
+audit and SHA256-pin the native Rust `quantus-node.exe` patched with the DVN
+key generator and Dilithium signature verifier: the Python desktop EXE does NOT
+include native Rust crypto, generate a secret by itself or sign transactions.
+
+1. Locate the **genuinely trusted Windows native CLI** on your own secure PC.
+2. Enter its **independently verified** SHA256 in the GUI. Clicking
+   **Verify native CLI + copy OFFLINE generation command** copies a PowerShell
+   command that rehashes the native executable immediately before running it.
+3. Paste that command in a **local interactive PowerShell terminal**; the native
+   Rust CLI generates the wallet on your own machine and prints the recovery
+   phrase **only in your private terminal**, never in the GUI or CI. Write down
+   recovery words offline and keep multiple protected backups. Do not use the
+   previously published CI test mnemonic.
+4. Copy the public SS58-190 receiving address to the GUI; save a short-lived
+   public challenge, sign its exact `message` using native
+   `key devnira-sign`, and load the public-only signed JSON certificate.
+5. The GUI checks the SHA256-pinned **native** Dilithium87 signature and the
+   expected address. **No send, 10M DVN issuance, independent genesis, or
+   usable blockchain balance exists yet.**
+
+The app is **not a full signing wallet** and its EXE is currently unsigned.
+The Rust native key generator CLI must be independently compiled/verified for
+Windows; do not confuse the GUI's copied command with the availability of the
+separately built Rust native binary.

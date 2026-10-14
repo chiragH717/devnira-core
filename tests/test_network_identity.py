@@ -14,6 +14,8 @@ class NetworkIdentityTests(unittest.TestCase):
         genesis = "0x" + "ab" * 32
         validate_identity("DEVNIRA local", {"specName": "devnira-runtime"}, genesis, genesis)
         for chain, runtime, value, expected in [
+            ("DEVNIRA / Quantus", {"specName": "devnira-runtime"}, genesis, genesis),
+            ("DEVNIRA", {"specName": "devnira-runtime"}, "0x"+"0"*64, "0x"+"0"*64),
             ("Quantus", {"specName": "devnira-runtime"}, genesis, genesis),
             ("DEVNIRA", {"specName": "quantus-runtime"}, genesis, genesis),
             ("DEVNIRA", {"specName": "devnira-runtime"}, genesis, "0x" + "cd" * 32),

@@ -21,7 +21,7 @@ def validate_local_rpc(url: str) -> str:
     return url
 
 def validate_identity(chain: object, runtime: object, genesis: object, expected_genesis: str) -> None:
-    if not isinstance(chain, str) or "devnira" not in chain.lower():
+    if not isinstance(chain, str) or "devnira" not in chain.lower() or "quantus" in chain.lower():
         raise ValueError("Connected chain is not identified as DEVNIRA")
     if not isinstance(runtime, dict) or "devnira" not in str(runtime.get("specName", "")).lower():
         raise ValueError("Connected runtime is not DEVNIRA")
@@ -29,5 +29,10 @@ def validate_identity(chain: object, runtime: object, genesis: object, expected_
         raise ValueError("Pinned trusted DEVNIRA genesis hash is required")
     if not isinstance(genesis, str) or not HASH.fullmatch(genesis):
         raise ValueError("Node returned invalid genesis hash")
+    # All-zero is not a valid independent DEVNIRA genesis pin, even if a
+    # mocked/local RPC also returns zero. A matching fake hash authenticates
+    # nothing, and must never unlock wallet features.
+    if genesis.lower() == "0x" + "0" * 64 or expected_genesis.lower() == "0x" + "0" * 64:
+        raise ValueError("Zero genesis hash forbidden; independent DVN chain required")
     if genesis.lower() != expected_genesis.lower():
         raise ValueError("Unexpected network genesis; refusing to mark as verified")
