@@ -19,6 +19,10 @@ jobs:
       - name: Clone ZK proof source
         run: |
           git clone --depth 1 https://github.com/Quantus-Network/qp-zk-circuits.git zk-circuits
+          PIN=$(python3 -c 'import json;print(json.load(open("config/upstream-pins.json"))["zk_circuits"]["sha"])')
+          git -C zk-circuits fetch --depth 1 origin "$PIN"
+          git -C zk-circuits checkout --detach "$PIN"
+          test "$(git -C zk-circuits rev-parse HEAD)" = "$PIN"
           git -C zk-circuits rev-parse HEAD | tee zk-revision.txt
       - name: Apply native DVN u64 input prototype
         run: python3 scripts/patch_zk_proof_inputs_v2.py zk-circuits
