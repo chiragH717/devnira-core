@@ -4,9 +4,10 @@ from datetime import datetime, timezone
 from spec.audit_actual_genesis import audit_candidate, UnsafeGenesis, GENESIS_LOCKED, GENESIS_LIQUID
 from spec.genesis_manifest import build_manifest
 from spec.genesis_allocations import Beneficiary
+from spec.ss58_company_account import encode_ss58_account
 
-ADDR = "TEST_PUBLIC_ACCOUNT_NOT_REAL"
-POT = "TEST_VESTING_POT_NOT_REAL"
+ADDR = encode_ss58_account(bytes(range(1, 33)))
+POT = encode_ss58_account(bytes([44] * 32))
 
 def fixture():
     manifest = build_manifest(datetime(2027, 1, 31, 12, tzinfo=timezone.utc),
