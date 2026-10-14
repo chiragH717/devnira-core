@@ -71,7 +71,10 @@ fn devnira_sign_custody_challenge(
         .map_err(|_| sc_cli::Error::Input("invalid DEVNIRA mnemonic or HD path".into()))?;
     let pair = Dilithium87Pair::from_keypair(keypair);
     let signed = pair.sign(message.as_bytes());
-    Ok(format!("0x{}", hex::encode(signed.as_ref())))
+    // SignatureWithPublic implements AsRef<[u8]> and AsRef<[u8; N]>;
+    // disambiguate the slice explicitly for Rust's hex::encode generic.
+    let signature_bytes: &[u8] = signed.as_ref();
+    Ok(format!("0x{}", hex::encode(signature_bytes)))
 }
 
 fn devnira_verify_custody_challenge(
