@@ -10,6 +10,15 @@ Approved consensus policy: independent DEVNIRA Layer-1; QPoW/Poseidon2; 12-secon
 - Proven cryptographic foundation does NOT mean the operational V1 leaf/prover/aggregator/withdrawal verifier has been fully replaced. Active production path still needs matching V2 recursion, aggregator public input encoding, nullifier/withdrawal settlement and anti-replay review.
 - **Do not change UNIT to 1e8 and deploy with Quantus's active V1 proof system.** The fail-closed production gate deliberately rejects this mismatch.
 
+## Latest Stage 2 V2 decoder update — 2026-10-14
+
+- The pinned external qp-zk-circuits repository now accepts an **opt-in** exact-u64 amount decoder spanning the single **leaf**, **private-batch aggregation** and **public-batch aggregation** public-input layouts. The patch applies to the real `qp-wormhole-inputs` Rust crate, not merely a standalone Python mock. Amounts differing by 1 base unit remain distinct; malformed canonical Goldilocks values, overcap/negative conservation and nonzero private-batch padding are rejected.
+- GitHub proof-inputs candidate CI **#2 passed**, including native Rust unit tests and wasm32v1-none/no_std compile: https://github.com/chiragH717/devnira-core/actions/runs/38538772966
+- **Combined** Plonky2 bounded native Poseidon2 leaf/proof tests, exact fee/value conservation and both V2 batch-input decoders passed in **zk-proof-input-v2 #13**: https://github.com/chiragH717/devnira-core/actions/runs/38538996054
+- **Critical cross-repo mismatch remains:** pinned Quantus chain `Cargo.toml` links to `qp-wormhole-*` **4.3.0**, while pinned external `qp-zk-circuits` source builds its proof crates as **4.4.0**. The current active verifier and both recursive wrapper circuits still use V1 `u32` quantized values, not V2 `u64` base units. In particular, output account sums are range-checked to 32 bits in the upstream private-batch circuit, and canonical verifier artifacts are pinned to old V1 circuit hashes. A successful V2 parser test CANNOT make this safe.
+- **No automatic 12-to-8 runtime switch.** Full V2 activation must migrate leaf proof, private/public recursive circuits, prover input witnesses, verifier keys/artifact hashes, on-chain settlement and ZK tree root coherently, and retest all negative cases before activating the 8-decimal runtime and genesis.
+- **Stage 2 remains incomplete.** Developers should not call V2 public inputs an active V2 proof/verifier, nor present this as a mainnet approval.
+
 ## 2 — Independent genesis (economics and pot safety unit/FRAME tests; launch BLOCKED)
 
 - Approved single company treasury has exactly 3M spendable + 7M escrowed via 12 noncancelable genesis grants in opt-in FRAME vesting patch; no extra existential-deposit minting.
