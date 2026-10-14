@@ -7,6 +7,7 @@ Without those fields, fail closed. Never substitute the upstream dev preset.
 """
 
 from spec.ss58_company_account import InvalidCompanyAddress, verified_company_public_address
+from spec.vesting_pot import vesting_pot_ss58, verify_vesting_pot_address
 
 DVN_UNIT = 100_000_000
 TOTAL_SUPPLY = 100_000_000 * DVN_UNIT
@@ -88,6 +89,14 @@ def audit_candidate(spec: dict, company_address: str, manifest: dict) -> dict:
     pot = manifest.get("onchain_vesting_pot_address")
     if not isinstance(pot, str) or not pot or pot == company_address:
         raise UnsafeGenesis("real on-chain vesting pot account required")
+    # Do not accept an arbitrary, unspendable-looking 7M account. The FRAME
+    # pallet will ONLY pay claims out of its actual sovereign PalletId account.
+    try:
+        verify_vesting_pot_address(pot)
+    except (InvalidCompanyAddress, ValueError) as exc:
+        raise UnsafeGenesis("wrong sovereign FRAME vesting pot account") from exc
+    if pot != vesting_pot_ss58():
+        raise UnsafeGenesis("wrong DEVNIRA vesting pot network")
     if balances_map.get(pot) != GENESIS_LOCKED:
         raise UnsafeGenesis("vested balance is not held in verifiable pot")
     # The upstream vesting pallet requires a pot existential-deposit buffer.
