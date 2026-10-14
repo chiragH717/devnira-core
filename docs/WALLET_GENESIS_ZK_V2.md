@@ -11,16 +11,16 @@ The treasury allocation belongs to **ONE company-owned DEVNIRA account**, not se
 - CLI is `key devnira` instead of the upstream `key quantus`.
 - Isolated hardened derivation namespace: standard `m/44'/900190'/0'/0'/0'`, Wormhole `m/44'/900191'/0'/0'/0'`. These are DEVNIRA project-specific paths, not official registered SLIP-44 types; never present them as a published industry standard.
 - Address prefix 190, consistent with `spec/ss58_company_account.py` and DEVNIRA runtime address prefix.
-- Crucially `sp_core::Pair::from_phrase` used by `key sign` now uses the **same** hardened path as the native `key devnira` generator. Before this patch, its default path belonged to Quantus and signed for a different account.
+- Rust node now implements actual `key devnira-sign` and `key devnira-verify` for address-bound company ownership challenges. The default `sp_core::Pair::from_phrase` hardened path is also patched to match `key devnira`. Generic upstream `key sign`/`key verify` do **not** exist in this node.
 - Newly generated secret phrases require both interactive stdin and stdout. Noninteractive build jobs must never generate fresh production secrets. Existing no-echo stdin mnemonic import is preserved.
 
 `four-component-build.yml` recompiles the node and tests public mnemonic recovery, native signing/verification with the published **unsafe-for-custody** upstream test mnemonic, rejection of a tampered message, and refusal to create real wallet secrets on a noninteractive CI runner.
 
-**Not yet a transaction wallet:** this only builds a local offline crypto custody prerequisite. Secure-at-rest key management, transaction nonce/fees, multi-sig/cold-storage policy, audited SCALE extrinsic signing/submission, and a Windows Send/Receive UI have not been implemented.
+**Not yet a transaction wallet:** the offline custody-challenge signer is not a transaction signer. A Windows **public Receive + finalized Free/Reserved Balance read-only preview** now compiles, but Secure-at-rest key management, nonce/fee calculation, audited SCALE extrinsic signing/submission and **Send** remain unimplemented. See [FOUR_POINT_STATUS.md](FOUR_POINT_STATUS.md).
 
 ## 2. Link the company account to genesis without private keys
 
-`spec/verify_company_custody.py` checks an address-bound, 256-bit random, 24-hour proof-of-control challenge that includes **DEVNIRA network identity, company address and expiry**. It delegates Dilithium87 signature verification to a **SHA-256 pinned DEVNIRA native binary**, then independently asks `key inspect --public --output-type json` to derive an SS58 address from that very public key; the derived account must exactly match the company address.
+`spec/verify_company_custody.py` checks an address-bound, 256-bit random, 24-hour proof-of-control challenge that includes **DEVNIRA network identity, company address and expiry**. It delegates Dilithium87 signature AND the expected SS58-190 company address binding to the **SHA-256 pinned native `key devnira-verify` command**. No non-existent upstream `key inspect --public` command is called.
 
 `scripts/prepare_company_genesis_custody.py` issues the public signing challenge and, only after successful proof verification, produces an OFF-CHAIN proposal for 3M instant + 7M locked / 12 exact monthly grants. Outputs intentionally contain neither private seeds nor signing passwords. It **does not** set `production_genesis: true` or generate a live node's genesis state.
 
@@ -49,4 +49,4 @@ The signer must sign exactly the `message` field using the local native Dilithiu
 - Run two independently bootstrapped nodes with actual Nvidia and AMD QPoW GPU hardware, verify live rewards, balance and supply accounting, transfer proofs, invalid proofs, fork/reorg and failure recovery.
 - Obtain verified development/production CI results and a security review before mainnet.
 
-**Current engineering code has been committed. Newly added wallet/leaf proof steps require a new CI run; neither successful execution nor mainnet readiness is presumed by this document.**
+**Wallet native signing, Windows read-only EXE, Plonky2 V2 amount/source candidate tests and NVIDIA/AMD source typechecks have passed their respective development CI. Active V2 aggregator/verifier, independent 8-decimal mainnet runtime/genesis, actual Windows transaction sending and GPU hardware tests have NOT passed. See [FOUR_POINT_STATUS.md](FOUR_POINT_STATUS.md).**
