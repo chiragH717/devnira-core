@@ -32,6 +32,12 @@ use zeroize::{Zeroize, Zeroizing};
         cmd+='XXXXXXXXXXXXXXX Quantus Account Details\nXXXXXXXXXXXXXXX Quantus Wormhole Details\n'
         self.cli=node/"cli.rs"
         self.command=node/"command.rs"
+        self.crypto=self.root/"primitives/dilithium-crypto/src/scheme_macro.rs"
+        self.crypto.parent.mkdir(parents=True)
+        self.crypto.write_text(
+            "// Default derivation path for Quantus: m/44'/189189'/0'/0'/0'\n"
+            "const DEFAULT_PATH: &str = \\"m/44'/189189'/0'/0'/0'\\";\n"
+        )
         self.cli.write_text("\tQuantus {\n")
         self.command.write_text(cmd)
 
@@ -46,6 +52,7 @@ use zeroize::{Zeroize, Zeroizing};
         self.assertNotIn("QUANTUS_DILITHIUM_CHAIN_ID",code)
         self.assertIn("QuantusKeySubcommand::Devnira",code)
         self.assertIn("\tDevnira {",self.cli.read_text())
+        self.assertIn("m/44\u0027/900190\u0027/0\u0027/0\u0027/0\u0027", self.crypto.read_text())
         self.assertEqual(DVN_STANDARD_HD_COIN_TYPE,"900190'")
         self.assertEqual(DVN_WORMHOLE_HD_COIN_TYPE,"900191'")
 
@@ -61,6 +68,7 @@ use zeroize::{Zeroize, Zeroizing};
             patch(self.root)
         self.assertEqual(self.command.read_text(),before)
         self.assertEqual(self.cli.read_text(),"\tQuantus {\n")
+        self.assertIn("m/44\u0027/189189\u0027/0\u0027/0\u0027/0\u0027", self.crypto.read_text())
 
 if __name__=="__main__":
     unittest.main()
