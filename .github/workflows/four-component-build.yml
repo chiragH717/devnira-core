@@ -83,6 +83,7 @@ jobs:
           python3 scripts/test_reward_runtime.py upstream
           python3 scripts/protect_genesis_vesting.py upstream
           python3 scripts/patch_exact_genesis_vesting.py upstream
+          python3 scripts/patch_dvn_wallet_cli.py upstream
           python3 scripts/test_exact_genesis_vesting.py upstream
           python3 scripts/test_genesis_vesting_protection.py upstream
           python3 scripts/test_onchain_vesting.py upstream
@@ -113,6 +114,21 @@ jobs:
       - name: Native and embedded WASM compile
         working-directory: upstream
         run: cargo +1.93.0 build --release --locked -p quantus-node
+      - name: Test actual DEVNIRA Dilithium wallet recovery with public TEST mnemonic
+        run: |
+          set -euo pipefail
+          # Published test-only mnemonic: never use for company custody.
+          printf '%s\n' 'bottom drive obey lake curtain smoke basket hold race lonely fit walk' |
+            upstream/target/release/quantus-node key devnira --scheme standard --words --wallet-index 0 > dvn-public-cli.txt
+          python3 scripts/check_dvn_cli_address.py dvn-public-cli.txt
+      - name: Reject unattended generation of company wallet secrets
+        run: |
+          set -euo pipefail
+          if upstream/target/release/quantus-node key devnira --scheme standard > /tmp/unattended-key.out 2>&1; then
+            echo 'ERROR: unattended key generation should be rejected' >&2
+            exit 1
+          fi
+          grep -q 'requires a local interactive terminal' /tmp/unattended-key.out
       - name: Record development genesis candidate (NOT DEVNIRA mainnet)
         run: |
           upstream/target/release/quantus-node build-spec --dev --disable-default-bootnode > dev-chain-spec.json
