@@ -21,7 +21,7 @@ class NativeDvnConservationPatchTests(unittest.TestCase):
         self.assertIn("builder.connect(input, outputs_and_fee)",s)
         self.assertIn("3 * DVN_NATIVE_MAX < GOLDILOCKS",s)
         self.assertIn("(DVN_NATIVE_MAX,DVN_NATIVE_MAX,1,0)",s)
-        self.assertIn("(DVN_NATIVE_MAX,DVN_NATIVE_MAX + 1,0,0)",s)
+        self.assertIn("(DVN_NATIVE_MAX, DVN_NATIVE_MAX + 1,0,0)",s)
 
     def test_reapplication_rejected(self):
         patch(self.root)
