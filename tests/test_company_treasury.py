@@ -4,14 +4,16 @@ from spec.company_treasury import (
     CompanyTreasury, UnverifiedCompanyAddress, company_genesis_manifest,
 )
 from spec.genesis_allocations import INSTANT_BUDGET, VESTED_BUDGET
+from spec.ss58_company_account import encode_ss58_account
 
 class CompanyTreasuryTests(unittest.TestCase):
     def setUp(self):
         self.tge = datetime(2027, 1, 31, 12, tzinfo=timezone.utc)
 
     def test_single_company_exact_genesis_and_12_months(self):
-        # This is an inert TEST STRING, not a wallet address or mainnet key.
-        schedule = company_genesis_manifest(self.tge, CompanyTreasury("test-company-public-account", True))
+        # Synthetic public AccountId used ONLY to check SS58 parsing, not a real wallet.
+        test_address = encode_ss58_account(bytes(range(1, 33)))
+        schedule = company_genesis_manifest(self.tge, CompanyTreasury(test_address, True))
         self.assertFalse(schedule["production_genesis"])
         self.assertEqual(len(schedule["beneficiaries"]), 1)
         self.assertEqual(schedule["beneficiaries"][0]["instant_units"], INSTANT_BUDGET)
@@ -31,6 +33,8 @@ class CompanyTreasuryTests(unittest.TestCase):
             CompanyTreasury("invented-address", False),
             CompanyTreasury(" ", True),
             CompanyTreasury(" test-address", True),
+            CompanyTreasury("invented-address", True),
+            CompanyTreasury(encode_ss58_account(bytes(range(1, 33)), prefix=189), True),
         ]:
             with self.assertRaises(UnverifiedCompanyAddress):
                 company_genesis_manifest(self.tge, item)
