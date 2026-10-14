@@ -45,12 +45,12 @@ jobs:
       - name: Build, PROVE and VERIFY recursive V2 leaf and reject tampered payout/fee
         working-directory: zk-circuits
         env:
-          DEVNIRA_TEST_ARTIFACT_DIR: ../dvn-v2-verifier-candidate
+          DEVNIRA_TEST_ARTIFACT_DIR: ${{ github.workspace }}/dvn-v2-verifier-candidate
         run: cargo +1.93.0 test --locked -p qp-wormhole-aggregator --lib dvn_v2_actual_recursive_ -- --nocapture
       - name: Hash development-only V2 leaf and fixed-key recursive verifier artifacts
         run: |
           set -euo pipefail
-          test -s dvn-v2-verifier-candidate/v2-leaf-verifier.bin
+          find dvn-v2-verifier-candidate -maxdepth 1 -type f -printf '%f %s bytes\n'\n          test -s dvn-v2-verifier-candidate/v2-leaf-verifier.bin
           test -s dvn-v2-verifier-candidate/v2-leaf-common.bin
           test -s dvn-v2-verifier-candidate/v2-recursive-verifier.bin
           test -s dvn-v2-verifier-candidate/v2-recursive-common.bin
