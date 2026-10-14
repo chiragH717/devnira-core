@@ -12,7 +12,7 @@ MODULE = r'''//! DVN V2 native amount bound circuit gadget (not yet wired into V
 //! Each native amount is encoded as one canonical Goldilocks field element.
 //! 100M DVN x 10^8 units = 10^16, under 2^54 and the Goldilocks modulus.
 //! The range constraint alone is insufficient: it must also cap at 10^16.
-use plonky2::iop::target::Target;
+use plonky2::{hash::hash_types::HashOutTarget, iop::target::Target};
 use zk_circuits_common::{
     circuit::{F, D},
     gadget_builder::GadgetBuilder,
@@ -45,6 +45,31 @@ pub fn constrain_three_native_dvn_amounts(
     }
 }
 
+/// V2 candidate: Poseidon2 commitment with exact native amount bound.
+///
+/// Layout must be identical to FRAME pallet-zk-tree::hash_leaf_native_v2:
+/// account(4 compact felts), transfer_count(2 u32 limbs), asset_id(u32),
+/// amount(single 54-bit native DVN base-unit felt).
+/// Not connected to the active V1 leaf circuit or batch aggregator yet.
+pub fn constrain_native_dvn_leaf_hash(
+    builder: &mut impl GadgetBuilder<F, D>,
+    account: [Target; 4],
+    transfer_count: [Target; 2],
+    asset_id: Target,
+    amount: Target,
+) -> HashOutTarget {
+    for piece in transfer_count.iter().copied().chain(core::iter::once(asset_id)) {
+        builder.range_check(piece, 32);
+    }
+    constrain_native_dvn_amount(builder, amount);
+    let felts: alloc::vec::Vec<Target> = account.into_iter()
+        .chain(transfer_count)
+        .chain(core::iter::once(asset_id))
+        .chain(core::iter::once(amount))
+        .collect();
+    builder.poseidon2_hash_no_pad(felts)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -55,6 +80,52 @@ mod tests {
         assert!(DVN_NATIVE_MAX < (1u64 << DVN_BITS));
         assert!((1u64 << (DVN_BITS - 1)) < DVN_NATIVE_MAX);
     }
+    #[test]
+    fn dvn_v2_native_poseidon_leaf_proof_commits_single_base_units() {
+        use plonky2::{
+            field::types::Field,
+            iop::witness::{PartialWitness, WitnessWrite},
+            plonk::{circuit_builder::CircuitBuilder, circuit_data::CircuitConfig},
+        };
+        use zk_circuits_common::circuit::C;
+
+        let mut builder = CircuitBuilder::<F, D>::new(CircuitConfig::standard_recursion_config());
+        let account = core::array::from_fn(|_| builder.add_virtual_target());
+        let transfer_count = core::array::from_fn(|_| builder.add_virtual_target());
+        let asset_id = builder.add_virtual_target();
+        let amount = builder.add_virtual_target();
+        let hash = constrain_native_dvn_leaf_hash(
+            &mut builder, account, transfer_count, asset_id, amount,
+        );
+        builder.register_public_inputs(&hash.elements);
+        let circuit = builder.build::<C>();
+
+        let prove = |value: u64| {
+            let mut pw = PartialWitness::new();
+            for target in account {
+                pw.set_target(target, F::from_canonical_u64(0x1111_1111_1111_1111)).unwrap();
+            }
+            pw.set_target(transfer_count[0], F::ZERO).unwrap();
+            pw.set_target(transfer_count[1], F::from_canonical_u64(7)).unwrap();
+            pw.set_target(asset_id, F::from_canonical_u64(5)).unwrap();
+            pw.set_target(amount, F::from_canonical_u64(value)).unwrap();
+            circuit.prove(pw)
+        };
+        let at_zero = prove(0).expect("zero DVN must prove");
+        let at_one = prove(1).expect("one base unit must prove");
+        let at_five = prove(500_000_000).expect("5 DVN must prove");
+        let at_five_plus_one = prove(500_000_001).expect("5 DVN +1 unit must prove");
+        let at_cap = prove(DVN_NATIVE_MAX).expect("100M DVN cap must prove");
+        for proof in [&at_zero, &at_one, &at_five, &at_five_plus_one, &at_cap] {
+            circuit.verify((*proof).clone()).expect("valid leaf proof must verify");
+        }
+        assert_ne!(at_zero.public_inputs, at_one.public_inputs,
+            "single DVN base unit must change authenticated Poseidon leaf");
+        assert_ne!(at_five.public_inputs, at_five_plus_one.public_inputs);
+        assert!(prove(DVN_NATIVE_MAX + 1).is_err(),
+            "oversupply leaf must never produce a valid proof");
+    }
+
     /// Actually build a Plonky2 circuit and verify its proof, rather than
     /// trusting source-only checks. Amounts > supply must fail proving.
     #[test]
