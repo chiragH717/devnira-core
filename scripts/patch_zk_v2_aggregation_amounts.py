@@ -95,6 +95,36 @@ pub fn constrain_v2_public_batch_exits(
     }
     total
 }
+/// Mandatory fail-fast preflight before passing *untrusted* witnesses into
+/// Plonky2. Some Plonky2 range-check generators panic on invalid inputs;
+/// never expose that panic to a production network request. The circuit
+/// enforces the same constraints independently against a malicious prover.
+pub fn validate_v2_fee_segment_values(
+    inputs: &[u64], outputs: &[u64], fee: u64, bps: u64,
+) -> Result<(), &'static str> {
+    if inputs.is_empty() || inputs.len()>MAX_LEAVES || outputs.len()!=2*inputs.len() {
+        return Err("DVN V2 batch dimension mismatch");
+    }
+    if bps>10_000 {
+        return Err("DVN V2 fee rate out of basis-point bounds");
+    }
+    if fee>DVN_MAX || inputs.iter().chain(outputs).any(|v| *v>DVN_MAX) {
+        return Err("DVN V2 per-amount cap exceeded");
+    }
+    let total_in: u128=inputs.iter().map(|x| *x as u128).sum();
+    let total_out: u128=outputs.iter().map(|x| *x as u128).sum();
+    if total_in > DVN_MAX as u128 || total_out>DVN_MAX as u128 {
+        return Err("DVN V2 batch exceeds total supply");
+    }
+    if total_in != total_out + fee as u128 {
+        return Err("DVN V2 conservation violated");
+    }
+    if total_out*10_000 > total_in*(10_000-bps) as u128 {
+        return Err("DVN V2 underpaid volume fee");
+    }
+    Ok(())
+}
+
 /// Multiply 54-bit native DVN x 14-bit fee coefficient into TWO exact
 /// base-2^32 limbs. A single Goldilocks multiplication would wrap for
 /// 100M DVN * 10000, so must never be used for the whole product.
@@ -180,6 +210,8 @@ mod tests {
         b.register_public_input(bps);
         let circuit=b.build::<C>();
         let prove=|i:u64, o1:u64, o2:u64, f:u64,rate:u64| {
+            validate_v2_fee_segment_values(&[i],&[o1,o2],f,rate)
+                .map_err(|e| anyhow::anyhow!(e))?;
             let mut pw=PartialWitness::new();
             pw.set_target(inp[0],F::from_canonical_u64(i)).unwrap();
             pw.set_target(out[0],F::from_canonical_u64(o1)).unwrap();
@@ -211,6 +243,20 @@ mod tests {
         }
     }
 
+    #[test]
+    fn dvn_v2_preflight_rejects_untrusted_fee_and_wraparound_without_prover_panics() {
+        assert!(validate_v2_fee_segment_values(
+            &[DVN_MAX], &[DVN_MAX-10_000_000_000_000,0],
+            10_000_000_000_000, 10).is_ok());
+        for (i,o,fee,rate) in [
+            (DVN_MAX,DVN_MAX-9_999_999_999_999,9_999_999_999_999,10),
+            (500_000_000,499_500_001,499_999,10),
+            (DVN_MAX,DVN_MAX,0,1),
+            (1,1,0,10_001),
+        ] {
+            assert!(validate_v2_fee_segment_values(&[i],&[o,0],fee,rate).is_err());
+        }
+    }
     #[test]
     fn dvn_v2_private_batch_proves_exact_u64_fee_and_value_conservation() {
         let mut b=CircuitBuilder::<F,D>::new(CircuitConfig::standard_recursion_config());
