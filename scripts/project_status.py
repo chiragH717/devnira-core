@@ -30,8 +30,13 @@ def status(root: Path=ROOT) -> dict:
         "Two live DVN nodes with NVIDIA and AMD GPU QPoW miners not validated",
         "Source revisions pinned for development; independent full-runtime build and security review incomplete",
     ])
-    jobs=["ZK prototype codec/amount gadget","Reward and vesting on upstream development runtime",
-          "Windows read-only node monitor","GPU readiness/reference audits"]
+    jobs=[
+        "Inactive V2 Poseidon2 leaf and Plonky2 cross-layer amount/proof tests",
+        "Native Dilithium87 signing of public company-ownership challenges (NOT extrinsic transfers)",
+        "Reward and immutable 12-month vesting on pinned upstream development runtime",
+        "Windows SS58-190 receive and genesis-pinned finalized balance preview EXE (READ ONLY)",
+        "NVIDIA CUDA and AMD Vulkan/WGPU miner source compiled without GPU hardware",
+    ]
     return {
         "project":"DEVNIRA", "symbol":"DVN",
         "network":"NOT MAINNET READY",
@@ -44,6 +49,9 @@ def status(root: Path=ROOT) -> dict:
         },
         "last_user_verified_candidate_build":"four-component integration build #3; development only",
         "candidate_jobs_passed":jobs,
+        "company_genesis_pot_identity":"canonical FRAME PalletId(qvesting), SS58 190; no real company account/funding yet",
+        "windows_wallet_capabilities":{"public_receive":True,"finalized_balance_reader":True,"signed_send":False,"real_genesis_pin_available":False},
+        "gpu_test_evidence":{"nvidia_cuda_source_checked":True,"amd_wgpu_source_checked":True,"actual_nvidia_pow":False,"actual_amd_pow":False,"two_live_nodes":False},
         "known_blockers":problems,
         "economics_configuration_valid":not any("configuration" in p or "issuance" in p and "does not" in p or "budget" in p or "split" in p for p in problems),
     }
