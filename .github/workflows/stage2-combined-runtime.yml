@@ -7,6 +7,9 @@ on:
       - scripts/test_reward_runtime.py
       - scripts/generate_emission_table.py
       - scripts/protect_genesis_vesting.py
+      - scripts/patch_exact_genesis_vesting.py
+      - scripts/test_exact_genesis_vesting.py
+      - tests/test_exact_genesis_pot_patch.py
       - scripts/test_genesis_vesting_protection.py
       - scripts/test_onchain_vesting.py
       - .github/workflows/stage2-combined-runtime.yml
@@ -33,6 +36,8 @@ jobs:
           python3 scripts/patch_reward_runtime.py upstream
           python3 scripts/test_reward_runtime.py upstream
           python3 scripts/protect_genesis_vesting.py upstream
+          python3 scripts/patch_exact_genesis_vesting.py upstream
+          python3 scripts/test_exact_genesis_vesting.py upstream
           python3 scripts/test_genesis_vesting_protection.py upstream
           python3 scripts/test_onchain_vesting.py upstream
       - name: Assert real FRAME components are patched
@@ -41,6 +46,8 @@ jobs:
           grep -q 'pub type MinedSubsidy' upstream/pallets/mining-rewards/src/lib.rs
           grep -q 'pub type PendingSubsidy' upstream/pallets/mining-rewards/src/lib.rs
           grep -q 'ImmutableGenesisScheduleCount' upstream/pallets/vesting/src/lib.rs
+          grep -q 'type ExactGenesisFunding: Get<bool>' upstream/pallets/vesting/src/lib.rs
+          grep -q 'dvn_exact_pot_all_twelve_monthly_grants_mint_no_extra_ed' upstream/pallets/vesting/src/tests.rs
           grep -q 'dvn_twelve_calendar_month_cliffs_pay_only_when_due' upstream/pallets/vesting/src/tests.rs
       - name: Install Rust and native dependencies
         run: |
@@ -55,6 +62,10 @@ jobs:
       - name: Run DVN monthly and immutable-grant FRAME tests
         working-directory: upstream
         run: cargo +1.93.0 test --locked -p pallet-vesting --lib dvn_ -- --nocapture
+      - name: Test exact 7M DVN vesting pot and twelve month issuance conservation
+        working-directory: upstream
+        run: |
+          cargo +1.93.0 test --locked -p pallet-vesting --lib dvn_exact_pot_ -- --nocapture
       - name: Compile single patched native node and embedded WASM runtime
         working-directory: upstream
         run: cargo +1.93.0 build --locked --release -p quantus-node
