@@ -6,6 +6,8 @@ proof of exact genesis issuance, company balances, locked founder schedules.
 Without those fields, fail closed. Never substitute the upstream dev preset.
 """
 
+from spec.ss58_company_account import InvalidCompanyAddress, verified_company_public_address
+
 DVN_UNIT = 100_000_000
 TOTAL_SUPPLY = 100_000_000 * DVN_UNIT
 MINING_RESERVE = 90_000_000 * DVN_UNIT
@@ -21,6 +23,10 @@ def audit_candidate(spec: dict, company_address: str, manifest: dict) -> dict:
         raise UnsafeGenesis("actual parsed chain spec and vesting manifest required")
     if not company_address or not isinstance(company_address, str) or company_address.strip() != company_address:
         raise UnsafeGenesis("verified company public account required")
+    try:
+        verified_company_public_address(company_address)
+    except InvalidCompanyAddress as exc:
+        raise UnsafeGenesis(f"invalid DEVNIRA company public account: {exc}") from exc
     if manifest.get("production_genesis") is not True:
         raise UnsafeGenesis("off-chain vesting proposal is not an enacted genesis")
     if manifest.get("company_address_verified") is not True:
@@ -42,6 +48,10 @@ def audit_candidate(spec: dict, company_address: str, manifest: dict) -> dict:
     for row in balances:
         if not isinstance(row, list) or len(row) != 2 or not isinstance(row[0], str) or not isinstance(row[1], int) or isinstance(row[1], bool) or row[1] < 0:
             raise UnsafeGenesis("invalid on-chain balance entry")
+        try:
+            verified_company_public_address(row[0])
+        except InvalidCompanyAddress as exc:
+            raise UnsafeGenesis(f"invalid DEVNIRA genesis account: {exc}") from exc
         if row[0] in balances_map:
             raise UnsafeGenesis("duplicate genesis balance")
         balances_map[row[0]] = row[1]
