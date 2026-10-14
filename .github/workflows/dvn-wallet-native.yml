@@ -1,0 +1,97 @@
+name: DEVNIRA native Dilithium87 wallet + company custody integration
+on:
+  push:
+    branches: [main]
+    paths:
+      - scripts/patch_dvn_wallet_cli.py
+      - scripts/check_dvn_cli_address.py
+      - scripts/prepare_company_genesis_custody.py
+      - spec/verify_company_custody.py
+      - config/upstream-pins.json
+      - .github/workflows/dvn-wallet-native.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  real-native-wallet:
+    name: Compile and verify DEVNIRA-native Dilithium87 signing (TEST KEY ONLY)
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify local safety, SS58 and genesis ownership logic
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_dvn_wallet_cli_patch.py' -v
+          python3 -m unittest discover -s tests -p 'test_dvn_wallet_cli_output.py' -v
+          python3 -m unittest discover -s tests -p 'test_company_custody_proof.py' -v
+          python3 -m unittest discover -s tests -p 'test_company_genesis_custody_manifest.py' -v
+      - name: Fetch precisely audited upstream Rust node
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/Quantus-Network/chain.git upstream
+          PIN=$(python3 -c 'import json;print(json.load(open("config/upstream-pins.json"))["upstream_chain"]["sha"])')
+          git -C upstream fetch --depth 1 origin "$PIN"
+          git -C upstream checkout --detach "$PIN"
+          test "$(git -C upstream rev-parse HEAD)" = "$PIN"
+          git -C upstream rev-parse HEAD > wallet-upstream-revision.txt
+      - name: Apply actual Rust native company wallet / signing-domain migration
+        run: |
+          set -euo pipefail
+          python3 scripts/patch_dvn_wallet_cli.py upstream
+          grep -q 'DEVNIRA_STANDARD_HD_COIN_TYPE' upstream/node/src/command.rs
+          grep -q 'm/44' upstream/primitives/dilithium-crypto/src/scheme_macro.rs
+          grep -q 'SS58Prefix: u8 = 190;' upstream/runtime/src/configs/mod.rs
+          git -C upstream diff -- node/src/command.rs node/src/cli.rs primitives/dilithium-crypto/src/scheme_macro.rs runtime/src/configs/mod.rs runtime/src/genesis_config_presets/mod.rs > native-dvn-wallet.patch
+      - name: Install Rust compiler and node native dependencies
+        run: |
+          rustup toolchain install 1.93.0 --profile minimal
+          rustup target add wasm32v1-none --toolchain 1.93.0
+          sudo apt-get update
+          sudo apt-get install -y clang libclang-dev llvm-dev libssl-dev pkg-config protobuf-compiler libprotobuf-dev cmake build-essential
+          echo "LIBCLANG_PATH=$(llvm-config --libdir)" >> "$GITHUB_ENV"
+      - name: Compile actual native node + embedded WASM using dev wallet changes
+        working-directory: upstream
+        run: cargo +1.93.0 build --release --locked -p quantus-node
+      - name: Generate one public TEST DVN account from published mnemonic
+        run: |
+          set -euo pipefail
+          printf '%s\n' 'bottom drive obey lake curtain smoke basket hold race lonely fit walk' |
+            upstream/target/release/quantus-node key devnira --scheme standard --words --wallet-index 0 --verbose > dvn-ci-public-account.txt
+          python3 scripts/check_dvn_cli_address.py dvn-ci-public-account.txt
+      - name: Sign/verify real Dilithium87 challenge with the same derived public account
+        run: |
+          set -euo pipefail
+          umask 077
+          file=$(mktemp)
+          trap 'rm -f "$file"' EXIT
+          printf '%s\n' 'bottom drive obey lake curtain smoke basket hold race lonely fit walk' > "$file"
+          pub=$(sed -n 's/^Pub key: //p' dvn-ci-public-account.txt | head -1)
+          test -n "$pub"
+          msg='DEVNIRA-TEMPORARY-PUBLIC-TEST-KEY-V1'
+          sig=$(upstream/target/release/quantus-node key sign --suri "$file" --message "$msg")
+          upstream/target/release/quantus-node key verify "$sig" "$pub" --message "$msg"
+          if upstream/target/release/quantus-node key verify "$sig" "$pub" --message "$msg tampered"; then
+            echo 'FAIL: edited signature message verified' >&2
+            exit 1
+          fi
+          echo 'Public TEST key signing verifies and rejects forged challenge.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Ensure unmonitored CI cannot generate NEW production secrets
+        run: |
+          set -euo pipefail
+          if upstream/target/release/quantus-node key devnira --scheme standard > /tmp/ci-custody.out 2>&1; then
+            echo 'FAIL: unauthenticated noninteractive seed creation succeeded' >&2
+            exit 1
+          fi
+          grep -q 'requires a local interactive terminal' /tmp/ci-custody.out
+      - name: Upload public-only audit evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: DEVNIRA-native-test-wallet-crypto-NOT-TREASURY-NOT-MAINNET
+          path: |
+            wallet-upstream-revision.txt
+            native-dvn-wallet.patch
+          if-no-files-found: error
+      - name: State mainnet custody limits
+        run: |
+          echo 'This uses a publicly known TEST phrase. No company keys were created or held. No on-chain signed transfer was broadcast; Windows send/receive remains incomplete.' >> "$GITHUB_STEP_SUMMARY"
