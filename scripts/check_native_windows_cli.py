@@ -21,7 +21,7 @@ def assert_quantus_mainnet_blocked(executable: Path, *, run=subprocess.run) -> s
         raise ValueError("Compiled DEVNIRA native Windows CLI executable required")
     try:
         response = run(
-            [str(binary), "--chain", "mainnet", "build-spec"],
+            [str(binary), "build-spec", "--chain", "mainnet"],
             capture_output=True,
             text=True,
             encoding="utf-8",

@@ -23,7 +23,7 @@ class NativeWindowsMainnetGuardTests(unittest.TestCase):
             return SimpleNamespace(returncode=status, stdout=stdout, stderr=stderr)
 
         verdict = assert_quantus_mainnet_blocked(self.binary, run=run)
-        self.assertEqual(calls[0][0], [str(self.binary), "--chain", "mainnet", "build-spec"])
+        self.assertEqual(calls[0][0], [str(self.binary), "build-spec", "--chain", "mainnet"])
         self.assertFalse(calls[0][1]["check"])
         self.assertTrue(calls[0][1]["capture_output"])
         return verdict
