@@ -14,6 +14,9 @@ jobs:
   native-cli-windows:
     runs-on: windows-latest
     timeout-minutes: 120
+    env:
+      # Windows Python defaults to CP1252; upstream Rust files contain UTF-8.
+      PYTHONUTF8: '1'
     steps:
       - uses: actions/checkout@v4
       - name: Windows Rust prerequisites
