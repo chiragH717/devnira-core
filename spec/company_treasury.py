@@ -8,6 +8,7 @@ from datetime import datetime
 from spec.genesis_allocations import Beneficiary, INSTANT_BUDGET, VESTED_BUDGET
 from spec.genesis_manifest import build_manifest
 from spec.ss58_company_account import InvalidCompanyAddress, verified_company_public_address
+from spec.vesting_pot import vesting_pot_ss58
 
 class UnverifiedCompanyAddress(ValueError):
     pass
@@ -40,5 +41,7 @@ def company_genesis_manifest(genesis_utc: datetime, treasury: CompanyTreasury) -
     result["company_address_verification"] = "ss58_checksum_and_prefix_verified_ownership_externally_asserted"
     result["company_spendable_at_genesis_units"] = INSTANT_BUDGET
     result["company_total_locked_at_genesis_units"] = VESTED_BUDGET
+    result["onchain_vesting_pot_address"] = vesting_pot_ss58()
+    result["vesting_pot_identity"] = "FRAME PalletId(qvesting) sovereign AccountId32, DEVNIRA SS58 190; not a release proof"
     result["production_genesis"] = False
     return result
