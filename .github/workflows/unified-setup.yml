@@ -1,4 +1,4 @@
-name: DEVNIRA unified integration and release gates
+name: DEVNIRA development checks and manual production gate
 on:
   push:
     branches: [main]
@@ -41,6 +41,9 @@ jobs:
           if-no-files-found: error
 
   production-source-gate:
+    # Source-stage push checks must not emit false red production failures.
+    # Explicit manual release audits STILL fail closed until integration is real.
+    if: github.event_name == 'workflow_dispatch'
     name: DVN runtime, ZK, genesis, vesting safety gate
     needs: reference-tests
     runs-on: ubuntu-latest
@@ -48,14 +51,19 @@ jobs:
       - uses: actions/checkout@v4
       - name: Fetch upstream runtime candidate
         run: |
+          set -euo pipefail
+          PIN=$(python3 -c 'import json;print(json.load(open("config/upstream-pins.json"))["upstream_chain"]["sha"])')
           git clone --depth 1 https://github.com/Quantus-Network/chain.git upstream
-          git -C upstream rev-parse HEAD
+          git -C upstream fetch --depth 1 origin "$PIN"
+          git -C upstream checkout --detach "$PIN"
+          test "$(git -C upstream rev-parse HEAD)" = "$PIN"
       - name: Apply DEVNIRA development identity patch
         run: python3 scripts/prepare_upstream.py upstream
       - name: Require actual eight-decimal ZK and DVN runtime before any release build
         run: python3 scripts/audit_production_runtime.py upstream
 
   release-ready:
+    if: github.event_name == 'workflow_dispatch'
     name: Production release readiness
     needs: [reference-tests, windows-monitor, production-source-gate]
     runs-on: ubuntu-latest
