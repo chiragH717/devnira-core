@@ -119,7 +119,7 @@ pub fn validate_v2_fee_segment_values(
     if total_in != total_out + fee as u128 {
         return Err("DVN V2 conservation violated");
     }
-    if total_out*10_000 > total_in*(10_000-bps) as u128 {
+    if total_out * 10_000u128 > total_in * ((10_000u64-bps) as u128) {
         return Err("DVN V2 underpaid volume fee");
     }
     Ok(())
