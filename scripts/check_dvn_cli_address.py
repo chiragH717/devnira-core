@@ -6,7 +6,9 @@ or production key data to GitHub Actions.
 """
 import argparse
 import re
+import sys
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from spec.ss58_company_account import decode_ss58_account, InvalidCompanyAddress
 
