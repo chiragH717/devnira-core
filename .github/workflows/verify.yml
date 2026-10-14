@@ -19,6 +19,17 @@ jobs:
         run: cargo test --manifest-path rust/tokenomics/Cargo.toml
       - name: Rust no_std DVN ZK amount reference tests
         run: cargo test --manifest-path rust/zk-amount-v2/Cargo.toml
+      - name: Publish coherent DEVNIRA engineering status
+        run: |
+          python3 -m unittest discover -s tests -p 'test_project_status.py' -v
+          python3 scripts/project_status.py | tee devnira-project-status.json
+          python3 -m json.tool devnira-project-status.json >/dev/null
+      - name: Upload truthful project status
+        uses: actions/upload-artifact@v4
+        with:
+          name: devnira-project-status-not-mainnet
+          path: devnira-project-status.json
+          if-no-files-found: error
       - name: Validate allocation and vesting proposal
         run: |
           python3 - <<'PY'
