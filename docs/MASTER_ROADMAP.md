@@ -25,15 +25,15 @@ This document covers the **whole product** — not only the blockchain code. Per
 | Android wallet | 0% | No Android app or release in the core repository | Secure Android Keystore-based custody, verified chain pinning, receive/send, restore/backups, native signing, UI, build/publish |
 | GPU miner source | 40% | Pinned upstream CUDA + WGPU/Vulkan sources compile/typecheck | DEVNIRA independent protocol compatibility; real NVIDIA and AMD GPU block/hash/shares, difficulty, payout |
 | Two-node live GPU testnet | 0% | Two-node RPC validator script exists (no hardware/network execution evidence) | 2 distinct synced peers on one independent genesis; actual blocks, rewards, finality, invalid proofs/forks/reorg and restart tests on physical hardware |
-| Mining pool | 0% | No server/share accounting/reward payout product in core repo | Miner auth/job/share protocol, vardiff, duplicate/rejected shares, fair pooled payout and accounting, payouts, pool stats, security and deployment |
-| Block explorer | 0% | No indexer/API/explorer frontend in core repo | Canonical indexed block/transaction/account/reward data; search, real-time status, fees, mining/issuance charts, API, UI, explorer hosting |
-| Company website `devnira.co` | 0% | No website/frontend files or verifiable production deployment in core repo | Domain/DNS/TLS, responsive pages, downloads, roadmap, tokenomics, wallet/mining tutorials, explorer/pool links, SEO, privacy/security disclosures |
+| Mining pool | 5% | Offline, non-consensus share accounting preview; no miner server, verifier or payouts | Miner auth/job/share protocol, vardiff, duplicate/rejected shares, fair pooled payout and accounting, payouts, pool stats, security and deployment |
+| Block explorer | 10% | Genesis-pinned local read-only RPC API and raw block lookup UI candidate; no indexer | Canonical indexed block/transaction/account/reward data; search, real-time status, fees, mining/issuance charts, API, UI, explorer hosting |
+| Company website `devnira.co` | 15% | Responsive static frontend source with truthful release disclaimers; no verified deployment | Domain/DNS/TLS, responsive pages, downloads, roadmap, tokenomics, wallet/mining tutorials, explorer/pool links, SEO, privacy/security disclosures |
 | Public RPC, indexer and APIs | 10% | Localhost RPC read-only parsing and test scripts | Independently deployed RPC endpoints, HTTPS/WSS, caching/rate-limits, indexed wallet/explorer APIs, stable endpoints and monitoring |
 | Security and product release | 5% | Fail-closed release checks and some negative tests | Independent consensus/ZK/economics audit, custody threat model, fuzz/DoS, reproducible builds, signed installer & binaries, incident response |
 | CI and automated integration | 65% | Many source/FRAME/WASM/proof candidate green GitHub Actions and fail-closed production gate | True active 8-decimal end-to-end CI, dedicated two-node GPU and Android/mobile build, signed release pipeline |
 | Documentation and launch readiness | 40% | Technical audit notes, tokenomics and release blockers recorded | User-facing whitepaper, public technical spec, SDK/API docs, operator guides, launch FAQs, transparent treasury and release policy |
 
-**Arithmetic mean of these 16 indicative values: ~30%; ~70% planning scope remains.** These estimates must never be presented as chain safety, revenue/commercial or an engineering deadline. Operational **mainnet readiness remains blocked**, regardless of averaged numbers.
+**Arithmetic mean of these 16 indicative values: ~32%; ~68% planning scope remains.** These estimates must never be presented as chain safety, revenue/commercial or an engineering deadline. Operational **mainnet readiness remains blocked**, regardless of averaged numbers.
 
 ## Stage 2 exit criteria — all must pass
 
@@ -78,5 +78,7 @@ Stage 2 cannot be called finished until these conditions pass. Additional physic
 ## Highest priority engineering order
 
 **ZK V2 on-chain activation → independent 8-decimal runtime/genesis → company signing wallet → true two-node CUDA/AMD mining → pool + explorer backend → website/frontends + Android → complete audit/release.**
+
+A combined static website, fail-closed local RPC explorer and offline pool accounting **development candidate** is documented in [PUBLIC_PRODUCT_CANDIDATES.md](PUBLIC_PRODUCT_CANDIDATES.md); this does not implement any active miner pool or public explorer deployment.
 
 Existing GitHub Actions PASS is authentic evidence of each named **development test**, not proof that unfinished systems are ready. Keep `release_evidence_gate.py` and production build fail-closed.

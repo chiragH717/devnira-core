@@ -13,7 +13,7 @@ GENESIS = "0x" + "a1" * 32
 HEAD = "0x" + "b2" * 32
 
 
-def rpc_mock(method, params):
+def rpc_mock(method, params=None):
     if method == "chain_getBlockHash":
         return GENESIS if params == [0] else HEAD if params == [7] else None
     if method == "system_properties":
