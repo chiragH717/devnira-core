@@ -25,10 +25,10 @@ def status(root: Path=ROOT) -> dict:
     problems.extend([
         "Active V2 Poseidon2 leaf, aggregator, prover and verifier not integrated end-to-end",
         "Independent 8-decimal DEVNIRA mainnet genesis has not been generated and tested",
-        "Vesting pot existential-deposit extra issuance is unresolved",
+        "Vesting pot existential-deposit fix is opt-in FRAME code only; actual independent DVN genesis remains unbuilt/unverified",
         "Windows secure transaction-signing wallet has not passed end-to-end tests",
         "Two live DVN nodes with NVIDIA and AMD GPU QPoW miners not validated",
-        "Pinned reproducible sources and security review not complete",
+        "Source revisions pinned for development; independent full-runtime build and security review incomplete",
     ])
     jobs=["ZK prototype codec/amount gadget","Reward and vesting on upstream development runtime",
           "Windows read-only node monitor","GPU readiness/reference audits"]
