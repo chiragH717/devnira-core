@@ -42,3 +42,11 @@ mine real rewards, or trust a native state root.
 
 No part of the GUI or GitHub workflow generates or retains company
 production private keys. Wallet **SEND** is not available.
+
+## Network RPC result validation
+
+The Windows GUI now shares the `wallet.devnira_balance.rpc` strict
+JSON-RPC packet validation (matching RPC ID, JSON-RPC v2, result/error
+presence and localhost-only endpoint); it does not implement a second,
+permissive RPC decoder. An all-zero genesis hash and foreign Quantus chain
+identities are rejected even if a local node returns the same string.

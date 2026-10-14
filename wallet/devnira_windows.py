@@ -9,25 +9,15 @@ import sys
 from pathlib import Path
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
-from urllib.request import Request, urlopen
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from spec.ss58_company_account import verified_company_public_address
 from wallet.network_identity import validate_local_rpc, validate_identity
-from wallet.devnira_balance import format_dvn, read_finalized_balance
+from wallet.devnira_balance import format_dvn, read_finalized_balance, rpc
 from wallet.company_wallet_prepare import (
     create_offline_keygen_command, create_public_ownership_challenge,
     verify_offline_company_certificate, verified_native_wallet_binary,
 )
-
-def rpc(endpoint, method, params=None):
-    body=json.dumps({"jsonrpc":"2.0","id":1,"method":method,"params":params or []}).encode()
-    req=Request(endpoint,body,headers={"Content-Type":"application/json"})
-    with urlopen(req,timeout=8) as response:
-        result=json.load(response)
-    if "error" in result:
-        raise RuntimeError(str(result["error"]))
-    return result.get("result")
 
 class DVNMonitor(tk.Tk):
     def __init__(self):
