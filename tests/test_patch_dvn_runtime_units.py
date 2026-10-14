@@ -18,6 +18,12 @@ class RuntimeUnitMigrationTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         files = {
+            "Cargo.toml": "\n".join(
+                f'{crate} = {{ version = "=4.4.0", default-features = false }}'
+                for crate in ("qp-wormhole-circuit", "qp-wormhole-inputs",
+                              "qp-wormhole-prover", "qp-wormhole-verifier",
+                              "qp-wormhole-aggregator", "qp-zk-circuits-common")
+            ),
             "runtime/src/lib.rs": RUNTIME,
             "runtime/src/configs/mod.rs": "type MiningCap = ConstU128<{ 90_000_000 * UNIT }>;",
             "pallets/zk-tree/src/tree.rs": "V2 no scaling",
@@ -52,6 +58,21 @@ class RuntimeUnitMigrationTests(unittest.TestCase):
         (self.root / "pallets/vesting/src/lib.rs").write_text("")
         with self.assertRaisesRegex(ValueError, "protected founder"):
             patch(self.root)
+
+    def test_blocks_old_v1_proof_crates_even_if_quantum_is_edited(self):
+        cargo=self.root/"Cargo.toml"
+        cargo.write_text(cargo.read_text().replace('=4.4.0','=4.3.0'))
+        with self.assertRaisesRegex(ValueError,"Quantus V1 4.3.0"):
+            patch(self.root)
+        self.assertEqual((self.root/"runtime/src/lib.rs").read_text(),RUNTIME)
+
+    def test_missing_verifier_proof_version_is_unsafe(self):
+        cargo=self.root/"Cargo.toml"
+        cargo.write_text(cargo.read_text().replace("qp-wormhole-verifier",
+                                                  "removed-verifier"))
+        with self.assertRaisesRegex(ValueError,"pinned proof version"):
+            patch(self.root)
+        self.assertEqual((self.root/"runtime/src/lib.rs").read_text(),RUNTIME)
 
     def test_stages_eight_decimal_runtime_when_local_guards_satisfied(self):
         patch(self.root)
