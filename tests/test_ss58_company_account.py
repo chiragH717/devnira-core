@@ -9,7 +9,7 @@ from spec.ss58_company_account import (
 )
 
 # Public test vectors only — no signer, secret key or custody is created here.
-ALICE_SUBSTRATE_TEST_VECTOR = "5GrwvaEF5zXb26Fz9rcQpDWSQMgULoe2S4vgtRWqbTCzbt7"
+ALICE_SUBSTRATE_TEST_VECTOR = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
 ALICE_SUBSTRATE_ACCOUNT = bytes.fromhex(
     "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d"
 )
