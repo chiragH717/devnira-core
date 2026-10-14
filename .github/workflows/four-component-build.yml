@@ -119,8 +119,27 @@ jobs:
           set -euo pipefail
           # Published test-only mnemonic: never use for company custody.
           printf '%s\n' 'bottom drive obey lake curtain smoke basket hold race lonely fit walk' |
-            upstream/target/release/quantus-node key devnira --scheme standard --words --wallet-index 0 > dvn-public-cli.txt
+            upstream/target/release/quantus-node key devnira --scheme standard --words --wallet-index 0 --verbose > dvn-public-cli.txt
           python3 scripts/check_dvn_cli_address.py dvn-public-cli.txt
+      - name: Actually sign and verify a test-only challenge with the recovered Dilithium87 company-key path
+        run: |
+          set -euo pipefail
+          # This mnemonic is an upstream PUBLIC test vector. NEVER deposit real DVN to it.
+          umask 077
+          recovery_file=$(mktemp)
+          trap 'rm -f "$recovery_file"' EXIT
+          printf '%s\n' 'bottom drive obey lake curtain smoke basket hold race lonely fit walk' > "$recovery_file"
+          pub=$(sed -n 's/^Pub key: //p' dvn-public-cli.txt | head -n 1)
+          test -n "$pub"
+          challenge='DEVNIRA-GENESIS-OWNERSHIP-TEST-V1: NOT FOR PRODUCTION'
+          sig=$(upstream/target/release/quantus-node key sign --suri "$recovery_file" --message "$challenge")
+          test -n "$sig"
+          upstream/target/release/quantus-node key verify "$sig" "$pub" --message "$challenge"
+          if upstream/target/release/quantus-node key verify "$sig" "$pub" --message "$challenge tampered"; then
+            echo 'ERROR: a tampered wallet signature was accepted' >&2
+            exit 1
+          fi
+          echo 'PASS: recovered DEVNIRA Dilithium87 test key signs and verifies the original challenge only.' >> "$GITHUB_STEP_SUMMARY"
       - name: Reject unattended generation of company wallet secrets
         run: |
           set -euo pipefail
