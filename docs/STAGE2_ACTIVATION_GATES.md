@@ -45,3 +45,5 @@ separate mandatory gates.
 ## Additional actual Plonky2 proof-hardening
 
 The fixed-verifier-key two-leaf recursive candidate now enforces pairwise **unique spent-leaf Poseidon2 commitments** cryptographically and tests rejection of the exact same individually valid proof used twice in a batch. This closes *candidate batch-local proof duplication* only; no claim is made that it supplies Merkle-root authorization, chain-specific domain separation or persistent cross-batch nullifiers. Active on-chain settlement remains BLOCKED.
+
+**CI regression repaired:** The negative CLI test now checks the specific missing approved **company public address** error rather than accepting any unrelated Python import failure as a safe rejection. The standalone Python CLI imports the project module correctly when executed from its script path.

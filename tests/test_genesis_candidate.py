@@ -1,5 +1,8 @@
 import copy
 import json
+import subprocess
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -54,6 +57,19 @@ class GenesisCandidateTests(unittest.TestCase):
         proposal["company_treasury"]["public_address"]=vesting_pot_ss58()
         with self.assertRaisesRegex(GenesisInputError,"vesting sovereign pot"):
             construct_inputs(proposal)
+
+    def test_actual_cli_rejects_missing_company_address_for_right_reason(self):
+        with tempfile.TemporaryDirectory() as d:
+            output = Path(d)/"impossible.json"
+            result = subprocess.run(
+                [sys.executable, str(PROJECT/"scripts/build_genesis_inputs.py"),
+                 "--proposal", str(PROJECT/"config/genesis-proposal.json"),
+                 "--output", str(output)],
+                cwd=d, capture_output=True, text=True, timeout=15)
+            self.assertNotEqual(result.returncode,0)
+            self.assertIn("genuine company SS58-190 PUBLIC address",result.stderr)
+            self.assertNotIn("ModuleNotFoundError",result.stderr)
+            self.assertFalse(output.exists())
 
     def test_repo_proposal_still_rejected(self):
         p=json.loads((PROJECT/"config/genesis-proposal.json").read_text())

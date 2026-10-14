@@ -50,10 +50,14 @@ jobs:
           echo 'Stage 2 remains BLOCKED, not mainnet. See source audit artifact.' >> "$GITHUB_STEP_SUMMARY"
       - name: Verify real company genesis inputs cannot be fabricated
         run: |
-          if python3 scripts/build_genesis_inputs.py --output impossible-genesis.json; then
+          set -euo pipefail
+          if python3 scripts/build_genesis_inputs.py --output impossible-genesis.json 2> genesis-rejected.log; then
             echo 'SECURITY ERROR: missing company address/timestamp were accepted'
             exit 1
           fi
+          cat genesis-rejected.log
+          grep -q 'genuine company SS58-190 PUBLIC address' genesis-rejected.log
+          ! grep -q 'ModuleNotFoundError' genesis-rejected.log
           test ! -f impossible-genesis.json
       - name: Upload source-only NOT MAINNET evidence
         uses: actions/upload-artifact@v4
