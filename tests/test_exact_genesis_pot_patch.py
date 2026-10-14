@@ -40,6 +40,13 @@ class ExactGenesisPotPatchTests(unittest.TestCase):
             "pallets/vesting/src/lib.rs": LIB,
             "runtime/src/configs/mod.rs": "impl pallet_vesting::Config for Runtime {\n\ttype Currency = Balances;",
             "pallets/vesting/src/mock.rs": MOCK,
+            "runtime/src/genesis_config_presets/mod.rs": (
+                "\tbalances.push((\n\t\tpot_account,\n"
+                "\t\tvesting_total\n"
+                "\t\t\t.checked_add(EXISTENTIAL_DEPOSIT)\n"
+                "\t\t\t.expect(\"vesting pot endowment overflows u128\"),\n"
+                "\t));"
+            ),
         }
         for relative, source in self.files.items():
             dest = self.root / relative
@@ -59,6 +66,9 @@ class ExactGenesisPotPatchTests(unittest.TestCase):
         self.assertIn("new_test_ext_exact", mock)
         self.assertIn("PayoutQuantum::set(1)", mock)
         self.assertIn("ConstBool<false>", configs, "Upstream dev preset must remain unchanged")
+        presets = (self.root / "runtime/src/genesis_config_presets/mod.rs").read_text()
+        self.assertIn("let pot_funding = if", presets)
+        self.assertIn("balances.push((pot_account, pot_funding));", presets)
 
     def test_rejects_second_application(self):
         patch(self.root)
@@ -80,7 +90,7 @@ class ExactGenesisPotPatchTests(unittest.TestCase):
         self.assertIn("700_000_000_000_000", body)
         self.assertIn("Balances::total_issuance()", body)
         self.assertEqual(body.count("2027"), 0, "timestamps should be encoded as numeric milliseconds")
-        self.assertEqual(len(re.findall(r"\\b[0-9]{13}u64\\b", body)), 12)
+        self.assertEqual(len(re.findall(r"\b[0-9]{13}u64\b", body)), 12)
 
 if __name__ == "__main__":
     unittest.main()
