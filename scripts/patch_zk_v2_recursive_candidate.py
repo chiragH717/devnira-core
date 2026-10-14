@@ -153,6 +153,34 @@ mod tests {
         assert!(outer_for_witness.verify(tampered_fee).is_err(),
             "cannot alter fee after proof verification");
 
+        // Export PUBLIC verifier artifacts for offline hash/circuit audit.
+        // Never export private witnesses, signing keys or a prover binary.
+        // These are development circuit artifacts, not active mainnet pins.
+        if let Ok(output_dir)=std::env::var("DEVNIRA_TEST_ARTIFACT_DIR") {
+            use plonky2::util::serialization::DefaultGateSerializer;
+            let target=std::path::PathBuf::from(output_dir);
+            std::fs::create_dir_all(&target).expect("artifact directory");
+            let serializer=DefaultGateSerializer;
+            std::fs::write(
+                target.join("v2-leaf-verifier.bin"),
+                f.leaf.verifier_only.to_bytes().expect("serialize leaf verifier"),
+            ).expect("write leaf verifier");
+            std::fs::write(
+                target.join("v2-leaf-common.bin"),
+                f.leaf.common.to_bytes(&serializer).expect("serialize leaf common"),
+            ).expect("write leaf common");
+            std::fs::write(
+                target.join("v2-recursive-verifier.bin"),
+                outer_for_witness.verifier_only.to_bytes()
+                    .expect("serialize recursive verifier"),
+            ).expect("write recursive verifier");
+            std::fs::write(
+                target.join("v2-recursive-common.bin"),
+                outer_for_witness.common.to_bytes(&serializer)
+                    .expect("serialize recursive common"),
+            ).expect("write recursive common");
+        }
+
         // The private witness is genuinely value conserving and capped.
         assert!(prove_leaf(&f,500_000_000,300_000_002,199_999_998,1).is_err(),
             "newly minted base unit cannot prove");
