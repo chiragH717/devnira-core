@@ -2,7 +2,7 @@
 
 Run manually: [four-component-build.yml](../.github/workflows/four-component-build.yml).
 
-The workflow evaluates the four tracks **in parallel**, records the actual development build outcomes, and then always runs a **fail-closed production gate**. Its red release-gate job is intentional as long as evidence is missing. **Do not change the release gate to green by substituting mock evidence.**
+The workflow evaluates four development tracks **in parallel**. Successful candidate tests show a **green development build**, while remaining mainnet requirements appear in an informational blocker artifact; a green candidate is **not production approval**. The separate production preflight remains fail-closed. **Never substitute mock evidence for a real mainnet gate.**
 
 | Track | What this workflow really verifies | What is STILL required before launch |
 | --- | --- | --- |
@@ -13,7 +13,7 @@ The workflow evaluates the four tracks **in parallel**, records the actual devel
 
 The approved immutable economic targets: 100M DVN total, 90M mined, 10M founders/investors/team, 3M immediately accessible, 7M released in 12 **calendar-month** instalments. Node identity must be independent of Quantus. No wallet seed/private key is ever required in GitHub.
 
-A **verified public wallet address and beneficiary split** are required inputs to create *real* genesis balances. No fake recipient addresses are used. The development node's existing genesis does NOT allocate actual DVN coins.
+The **single-company allocation split is approved** (3M immediately liquid + 7M locked). A verified company **public wallet address** is still required to create *real* genesis balances. No fake recipient addresses are used. The development node's existing genesis does NOT allocate actual DVN coins.
 
 The current workflow is a **candidate integrator**, **not a complete one-command mainnet builder**. It is intentionally manual-only to avoid repeatedly consuming 30–60 minutes of CI on every small code commit. No workflow can establish NVIDIA/AMD hardware compatibility on a runner with neither GPU. No workflow can certify cryptographic security from arithmetic unit tests.
 
@@ -73,3 +73,7 @@ Inspection of the **actual upstream** `runtime/src/genesis_config_presets/mod.rs
 `spec/audit_actual_genesis.py` is a fail-closed **chain-spec structure auditor**, checking exact 8-decimal metadata, independently named live chain, a verified single company recipient, precisely 12 matched on-chain `cliff=end` schedules, exact 7M lock, exactly 3M liquid and 10M total genesis issuance, no duplicate balances and a funded vesting pot. It also blocks nonzero or unknown vesting-pot ED until proper issuance accounting is designed. Mock fixture tests demonstrate these checks; **they are not actual independent DVN blockchain tests**. The new `test_actual_genesis_audit.py` runs in combined CI.
 
 **Necessary engineering decision, not yet implemented:** redesign genesis/pallet to account for the vesting-pot buffer without extra issuance or reducing the promised 3M company spendable amount, and remove all upstream automatic test-account endowments. Then connect the approved company public key (not yet available) and verify the actual chain spec, 8-decimal runtime, exact issuance, real protected vesting claims and consensus against a live node. The genesis proposal remains **unminted**, and production remains blocked.
+
+## 2026-10-14: actual FRAME genesis extra-ED funding patch
+
+See [EXACT_GENESIS_POT.md](EXACT_GENESIS_POT.md). The new `ExactGenesisFunding` pallet option and matching actual runtime genesis-builder logic remove the unnecessary additional vesting-pot ED **only if enabled in a properly migrated production DVN runtime**. New mock FRAME tests cover the exact 7M obligations across 12 months, rollback on proof recording failure, and safe final account reaping. The legacy Quantus development runtime retains the old funding mode. Pinned exact chain/proof revisions are recorded in `config/upstream-pins.json`. Actual production ZK migration and independent genesis are still outstanding; no green test equates to minted DVN coins.
