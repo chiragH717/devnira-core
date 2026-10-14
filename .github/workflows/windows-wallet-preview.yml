@@ -11,6 +11,14 @@ on:
       - spec/verify_company_custody.py
       - tests/test_network_identity.py
       - .github/workflows/windows-wallet-preview.yml
+  pull_request:
+    paths:
+      - wallet/**
+      - spec/ss58_company_account.py
+      - spec/verify_company_custody.py
+      - tests/test_windows_company_wallet.py
+      - tests/test_network_identity.py
+      - .github/workflows/windows-wallet-preview.yml
   workflow_dispatch:
 permissions:
   contents: read
