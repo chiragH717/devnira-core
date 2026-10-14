@@ -1,0 +1,64 @@
+name: DEVNIRA Windows company public-wallet bundle (NOT MAINNET)
+on:
+  pull_request:
+    paths:
+      - scripts/package_windows_company_bundle.py
+      - tests/test_package_windows_company_bundle.py
+      - .github/workflows/windows-company-wallet-bundle.yml
+      - docs/WINDOWS_NATIVE_COMPANY_BUILD.md
+  push:
+    branches: [main]
+    paths:
+      - scripts/package_windows_company_bundle.py
+      - tests/test_package_windows_company_bundle.py
+      - .github/workflows/windows-company-wallet-bundle.yml
+      - docs/WINDOWS_NATIVE_COMPANY_BUILD.md
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: read
+jobs:
+  verified-windows-offline-bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fail-closed local package/sha/label tests
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_package_windows_company_bundle.py' -v
+          python3 -m py_compile scripts/package_windows_company_bundle.py
+      - name: Verify immutable successful Windows CI run source revisions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          test "$(gh api "repos/$GH_REPO/actions/runs/38599371352" --jq .conclusion)" = success
+          test "$(gh api "repos/$GH_REPO/actions/runs/38599371352" --jq .head_sha)" = d307f43daccd81a33e7db5a8ef589cb04d2af6f2
+          test "$(gh api "repos/$GH_REPO/actions/runs/38588478821" --jq .conclusion)" = success
+          test "$(gh api "repos/$GH_REPO/actions/runs/38588478821" --jq .head_sha)" = 8a411f107a59fb707b793e9fbb412f1a4545b1eb
+      - name: Download exactly both provenance-verified Windows artifact names
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh run download 38599371352 --name DEVNIRA-WINDOWS-NATIVE-DILITHIUM-CLI-NO-SEND-NOT-MAINNET --dir artifacts/native
+          gh run download 38588478821 --name DEVNIRA-Windows-Offline-Company-Setup-and-Balance-NO-SEND-NOT-MAINNET --dir artifacts/gui
+      - name: Verify both EXE hashes then combine safe public-only setup files
+        run: |
+          set -euo pipefail
+          python3 scripts/package_windows_company_bundle.py --native artifacts/native --gui artifacts/gui --output DEVNIRA-Windows-Company-Wallet-Setup-NOT-MAINNET.zip
+          sha256sum -c DEVNIRA-Windows-Company-Wallet-Setup-NOT-MAINNET.zip.sha256
+          unzip -Z -1 DEVNIRA-Windows-Company-Wallet-Setup-NOT-MAINNET.zip
+          echo 'Two previously verified UNSIGNED native/GUI Windows developer artifacts combined; NO SEND, no mainnet, no owner private keys.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish verified Windows bundle (NOT MAINNET)
+        uses: actions/upload-artifact@v4
+        with:
+          name: DEVNIRA-COMPANY-WINDOWS-OFFLINE-PREVIEW-NOT-MAINNET
+          path: |
+            DEVNIRA-Windows-Company-Wallet-Setup-NOT-MAINNET.zip
+            DEVNIRA-Windows-Company-Wallet-Setup-NOT-MAINNET.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
