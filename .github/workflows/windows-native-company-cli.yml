@@ -6,6 +6,8 @@ on:
       - scripts/patch_dvn_wallet_cli.py
       - scripts/patch_dvn_custody_signing.py
       - scripts/guard_dvn_network_identity.py
+      - scripts/check_native_windows_cli.py
+      - tests/test_check_native_windows_cli.py
       - config/upstream-pins.json
   workflow_dispatch:
 permissions:
@@ -55,6 +57,11 @@ jobs:
         run: |
           cargo +1.93.0 build --locked --release -p quantus-node
           if ($LASTEXITCODE -ne 0) { throw 'Rust Windows node build failed' }
+      - name: Unit-test the expected-failure foreign-network CLI guard
+        shell: pwsh
+        run: |
+          python -m unittest discover -s tests -p "test_check_native_windows_cli.py" -v
+          if ($LASTEXITCODE -ne 0) { throw 'Expected-failure guard regression' }
       - name: Cryptographically verify REAL native CLI with PUBLIC test-only mnemonic
         shell: pwsh
         run: |
@@ -69,8 +76,11 @@ jobs:
           Copy-Item $binary DEVNIRA-Offline-Key-CLI-NOT-MAINNET.exe
           $hash=(Get-FileHash DEVNIRA-Offline-Key-CLI-NOT-MAINNET.exe -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  DEVNIRA-Offline-Key-CLI-NOT-MAINNET.exe" | Out-File -Encoding ascii native-cli-sha256.txt
-          if (& $binary --chain mainnet build-spec 2>&1 | Out-String) { }
-          if ($LASTEXITCODE -eq 0) { throw 'CLI permitted a forbidden Quantus mainnet' }
+          # Python subprocess captures the expected nonzero exit code and
+          # verifies the exact DEVNIRA foreign-network refusal, rather than
+          # letting PowerShell 7 + ErrorActionPreference=Stop terminate the job.
+          python scripts/check_native_windows_cli.py $binary
+          if ($LASTEXITCODE -ne 0) { throw 'DEVNIRA foreign-mainnet safety gate failed' }
       - name: Upload TESTED unsigned native keygen tool — not a transaction wallet
         uses: actions/upload-artifact@v4
         with:
