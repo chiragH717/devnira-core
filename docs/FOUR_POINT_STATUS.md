@@ -20,6 +20,16 @@ Approved consensus policy: independent DEVNIRA Layer-1; QPoW/Poseidon2; 12-secon
 - **Additional fail-closed guard shipped:** `scripts/patch_dvn_runtime_units.py` now refuses 8-decimal native-runtime source mutation even after superficial scale/u32 edits if pinned proof crates still link Quantus V1 `4.3.0` or any required crate version is absent. Dedicated negative regression tests passed in [Reference Checks #257](https://github.com/chiragH717/devnira-core/actions/runs/38539441386). The `4.4.0` source parser candidate is *not* equivalent to an active V2 verifier or an automatic dependency upgrade.
 - **Stage 2 remains incomplete.** Developers should not call V2 public inputs an active V2 proof/verifier, nor present this as a mainnet approval.
 
+### Newly verified: native-u64 Plonky2 aggregation and overflow-safe BPS (development only)
+
+- `scripts/patch_zk_v2_aggregation_amounts.py` injects an *opt-in* real Rust Plonky2 module into the **pinned 4.4.0 upstream aggregator workspace**, alongside the existing V2 Poseidon2 leaf, fee-conservation circuit and native u64 leaf/private/public-batch parser. Existing V1 recursive circuit and verifier keys stay untouched.
+- Actual `cargo test` creates, verifies and rejects private-batch and public-batch **54-bit native DVN** amount proofs. Aggregated input, output and total settlement are capped at exactly 100M DVN, including one-base-unit negative cases.
+- **Critical security fix:** Goldilocks is about 1.84×10¹⁹; a maximum 8192-slot public wrapper can add far more than this even when each account stays under 100M DVN. The V2 gadget checks **every prefix sum** against the 100M cap, eliminating modular wraparound that a final-sum-only check could miss.
+- **Actual fee-rate proof:** an amount up to 10¹⁶ times 10,000 BPS can exceed Goldilocks. The new gadget splits multiplication into exact 32-bit low/high limbs, carries safely, checks high/low borrow and enforces `outputs×10000 <= inputs×(10000−bps)`. A separate validated-u128 preflight rejects malformed user witnesses *before* invoking Plonky2's panic-prone range-check generators.
+- Native V2 proof tests include 100M DVN fee arithmetic, incorrect fee/BPS rejection, invalid output inflation, oversized batch rejection, and **cryptographically tampered payout or BPS public-input verification failures**. [Real Aggregation Proof Build #7 — PASS](https://github.com/chiragH717/devnira-core/actions/runs/38541842020).
+- Single combined `zk-proof-input-v2.yml` workflow now runs V2 leaf/Poseidon2 circuit, amount parser and aggregate fee proof tests together against the pinned source and compiler. This combined job's success must be verified separately; a standalone green aggregator result does NOT establish an active recursive verifier.
+- **Still BLOCKED:** production 4.3.0 V1-to-4.4.0 V2 proof compatibility, native leaf/recursive verifier artifact hashes, public/private batch wrappers, settlement nullifiers, genuine independent eight-decimal runtime WASM/genesis, signing send wallet and physical GPU network tests.
+
 ## 2 — Independent genesis (economics and pot safety unit/FRAME tests; launch BLOCKED)
 
 - Approved single company treasury has exactly 3M spendable + 7M escrowed via 12 noncancelable genesis grants in opt-in FRAME vesting patch; no extra existential-deposit minting.
