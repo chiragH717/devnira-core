@@ -50,3 +50,17 @@ JSON-RPC packet validation (matching RPC ID, JSON-RPC v2, result/error
 presence and localhost-only endpoint); it does not implement a second,
 permissive RPC decoder. An all-zero genesis hash and foreign Quantus chain
 identities are rejected even if a local node returns the same string.
+
+## Windows CI PowerShell expected-failure regression (2026-10-14)
+
+The initial Windows native Rust compile **passed** and the publicly known test
+mnemonic successfully derived an SS58-190 account. That run incorrectly
+marked the final foreign-mainnet rejection as a generic failing
+PowerShell command, not an explicitly tested exit code. This revision moves
+the negative test into `scripts/check_native_windows_cli.py` via a
+captured subprocess with an explicit return-code **and exact refusal text**
+assertion. It rejects unrelated native process/CLI/DLL failures and tests
+both success and all reject cases in Python before invoking the native binary.
+No bypass of the foreign-network guard or invalid test-as-success behavior is
+permitted. The GitHub workflow must still finish green before any native
+executable is described as available.
