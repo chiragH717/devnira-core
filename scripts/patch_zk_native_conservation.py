@@ -30,10 +30,30 @@ pub fn constrain_native_dvn_value_conservation(
     builder.connect(input, outputs_and_fee);
 }
 
+/// Bind the *same* exact 8-decimal leaf amount to the authenticated
+/// Poseidon2 commitment and to both visible outputs + a visible fee.
+/// Caller MUST register the returned leaf hash and output/fee targets as
+/// public inputs and verify Merkle membership, nullifier and fee policy.
+pub fn constrain_native_dvn_authenticated_spend(
+    builder: &mut impl GadgetBuilder<F, D>,
+    account: [Target; 4],
+    transfer_count: [Target; 2],
+    asset_id: Target,
+    input: Target,
+    output_1: Target,
+    output_2: Target,
+    fee: Target,
+) -> HashOutTarget {
+    let leaf_hash = constrain_native_dvn_leaf_hash(builder, account, transfer_count, asset_id, input);
+    constrain_native_dvn_value_conservation(builder, input, output_1, output_2, fee);
+    leaf_hash
+}
+
 #[cfg(test)]
 mod devnira_native_conservation_tests {
     use super::{
-        constrain_native_dvn_value_conservation, DVN_NATIVE_MAX, DVN_BITS,
+        constrain_native_dvn_value_conservation, constrain_native_dvn_authenticated_spend,
+        DVN_NATIVE_MAX, DVN_BITS,
     };
     use plonky2::{
         field::types::Field,
@@ -86,6 +106,67 @@ mod devnira_native_conservation_tests {
             assert!(prove(i,o1,o2,f).is_err(),
                 "invalid DVN amount witness unexpectedly produced proof");
         }
+    }
+
+    /// The leaf hash and the transfer outputs/fee are PUBLIC commitments to
+    /// one common private input: the prover cannot mix valid parts of
+    /// unrelated transfers or silently change the beneficiary/amount.
+    #[test]
+    fn dvn_native_authenticated_leaf_and_public_outputs_are_bound() {
+        let mut builder = CircuitBuilder::<F, D>::new(CircuitConfig::standard_recursion_config());
+        let account = core::array::from_fn(|_| builder.add_virtual_target());
+        let count = core::array::from_fn(|_| builder.add_virtual_target());
+        let asset = builder.add_virtual_target();
+        let input = builder.add_virtual_target();
+        let first = builder.add_virtual_target();
+        let change = builder.add_virtual_target();
+        let fee = builder.add_virtual_target();
+        let leaf = constrain_native_dvn_authenticated_spend(
+            &mut builder, account, count, asset, input, first, change, fee,
+        );
+        builder.register_public_inputs(&leaf.elements);
+        builder.register_public_input(first);
+        builder.register_public_input(change);
+        builder.register_public_input(fee);
+        let data = builder.build::<C>();
+
+        let prove = |amount:u64, to_limb:u64, out1:u64, out2:u64, f:u64| {
+            let mut pw = PartialWitness::new();
+            for a in account.iter().copied() {
+                pw.set_target(a, F::from_canonical_u64(to_limb)).unwrap();
+            }
+            pw.set_target(count[0], F::ZERO).unwrap();
+            pw.set_target(count[1], F::from_canonical_u64(7)).unwrap();
+            pw.set_target(asset, F::ZERO).unwrap();
+            pw.set_target(input, F::from_canonical_u64(amount)).unwrap();
+            pw.set_target(first, F::from_canonical_u64(out1)).unwrap();
+            pw.set_target(change, F::from_canonical_u64(out2)).unwrap();
+            pw.set_target(fee, F::from_canonical_u64(f)).unwrap();
+            data.prove(pw)
+        };
+
+        let valid = prove(500_000_000, 111, 300_000_001, 199_999_998, 1)
+            .expect("valid bound DVN transfer must prove");
+        data.verify(valid.clone()).expect("valid bound transfer must verify");
+        assert_eq!(valid.public_inputs.len(), 7);
+        assert_eq!(valid.public_inputs[4], F::from_canonical_u64(300_000_001));
+        assert_eq!(valid.public_inputs[5], F::from_canonical_u64(199_999_998));
+        assert_eq!(valid.public_inputs[6], F::ONE);
+
+        assert!(prove(500_000_000, 111, 300_000_002, 199_999_998, 1).is_err(),
+            "inflation with unchanged authenticated input must fail");
+        assert!(prove(500_000_000, 111, 300_000_001, 199_999_998, 2).is_err(),
+            "forged fee must fail");
+
+        // Changing the private input or recipient may permit a different
+        // mathematically valid transfer, but MUST alter the public leaf
+        // commitment, so it cannot authenticate against the previous root.
+        let different_input = prove(500_000_001, 111, 300_000_001, 199_999_998, 2)
+            .expect("separate valid spend can prove");
+        assert_ne!(&valid.public_inputs[..4], &different_input.public_inputs[..4]);
+        let other_account = prove(500_000_000, 112, 300_000_001, 199_999_998, 1)
+            .expect("different recipient is a separate commitment");
+        assert_ne!(&valid.public_inputs[..4], &other_account.public_inputs[..4]);
     }
 }
 '''
