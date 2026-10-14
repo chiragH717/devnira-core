@@ -10,6 +10,11 @@ on:
       - scripts/patch_zk_native_conservation.py
       - config/upstream-pins.json
       - .github/workflows/zk-v2-recursive.yml
+  pull_request:
+    paths:
+      - scripts/patch_zk_v2_recursive_candidate.py
+      - tests/test_zk_v2_recursive_candidate.py
+      - .github/workflows/zk-v2-recursive.yml
   workflow_dispatch:
 permissions:
   contents: read
@@ -47,6 +52,9 @@ jobs:
         env:
           DEVNIRA_TEST_ARTIFACT_DIR: ${{ github.workspace }}/dvn-v2-verifier-candidate
         run: cargo +1.93.0 test --locked -p qp-wormhole-aggregator --lib dvn_v2_actual_recursive_ -- --nocapture
+      - name: Prove genuine TWO-leaf fixed-key V2 recursive batch and reject inflation
+        working-directory: zk-circuits
+        run: cargo +1.93.0 test --locked -p qp-wormhole-aggregator --lib dvn_v2_batch_ -- --nocapture
       - name: Hash development-only V2 leaf and fixed-key recursive verifier artifacts
         run: |
           set -euo pipefail

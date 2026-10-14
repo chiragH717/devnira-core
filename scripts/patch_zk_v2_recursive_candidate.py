@@ -24,11 +24,14 @@ use plonky2::{
     plonk::{
         circuit_builder::CircuitBuilder,
         circuit_data::{CircuitConfig, CircuitData},
+        proof::ProofWithPublicInputsTarget,
     },
 };
 use zk_circuits_common::circuit::{F,C,D};
 use crate::common::recursive::add_recursive_verifiers;
-use crate::devnira_v2_segment::constrain_v2_public_batch_exits;
+use crate::devnira_v2_segment::{
+    constrain_v2_native_amount, constrain_v2_public_batch_exits, MAX_LEAVES,
+};
 
 /// The seven real V2 inner public inputs are:
 /// [poseidon2_leaf_hash_4, output1_native_u64, output2_native_u64, fee_native_u64].
@@ -52,6 +55,45 @@ pub fn build_v2_leaf_recursive_wrapper(
     constrain_v2_public_batch_exits(&mut builder,&pis[4..6]);
     builder.register_public_inputs(pis);
     Ok(builder.build::<C>())
+}
+
+/// Development-only fixed-key recursive aggregation of 2..=64 genuine V2
+/// Poseidon2 leaf proofs. This is NOT Quantus's production private-batch tree.
+/// Every leaf's exact hash, payouts, and fee remain public inputs; the two
+/// final public inputs bind the combined native payouts and fees.
+///
+/// Public layout: [leaf0 7 PIs, ..., leafN 7 PIs, total_payout, total_fee].
+/// Verifying leaf conservation alone does not prevent replay or prove tree
+/// membership. Runtime nullifiers, roots and chain-specific domain separation
+/// must be integrated and reviewed before activating withdrawals.
+pub fn build_v2_multi_leaf_recursive_batch(
+    inner: &CircuitData<F,C,D>,
+    num_leaves: usize,
+)->Result<(CircuitData<F,C,D>,Vec<ProofWithPublicInputsTarget<D>>)> {
+    ensure!(inner.common.num_public_inputs==V2_LEAF_PUBLIC_INPUT_LEN,
+        "STOP: mismatched V2 Poseidon2 leaf PI schema");
+    ensure!((2..=MAX_LEAVES).contains(&num_leaves),
+        "STOP: batch leaf count must be between 2 and 64");
+    let mut builder=CircuitBuilder::<F,D>::new(CircuitConfig::standard_recursion_config());
+    // Every proof uses the SAME constant, non-witness verifier key.
+    let proofs=add_recursive_verifiers::<F,C,D>(
+        &mut builder,&inner.common,&inner.verifier_only,num_leaves,
+    )?;
+    let mut outputs=Vec::with_capacity(num_leaves*2);
+    let mut total_fee=builder.zero();
+    for proof in &proofs {
+        builder.register_public_inputs(&proof.public_inputs);
+        outputs.extend_from_slice(&proof.public_inputs[4..6]);
+        total_fee=builder.add(total_fee,proof.public_inputs[6]);
+        // Bound EVERY fee prefix; no arithmetic in Goldilocks can wrap.
+        constrain_v2_native_amount(&mut builder,total_fee);
+    }
+    let total_payout=constrain_v2_public_batch_exits(&mut builder,&outputs);
+    let total_spent=builder.add(total_payout,total_fee);
+    constrain_v2_native_amount(&mut builder,total_spent);
+    builder.register_public_input(total_payout);
+    builder.register_public_input(total_fee);
+    Ok((builder.build::<C>(),proofs))
 }
 
 #[cfg(test)]
@@ -186,6 +228,56 @@ mod tests {
             "newly minted base unit cannot prove");
         assert!(prove_leaf(&f,DVN_MAX+1,0,0,0).is_err(),
             "exceeds 100M DVN maximum");
+    }
+
+    /// Two actual 8-decimal leaf proofs are verified by a constant-key
+    /// recursive batch. Per-leaf conservation, total payouts, total fees and
+    /// the 100M cap are constraints, not untrusted off-chain arithmetic.
+    #[test]
+    fn dvn_v2_batch_real_two_leaf_recursive_proof_enforces_exact_supply() {
+        use std::panic::{catch_unwind,AssertUnwindSafe};
+        let f=leaf_fixture();
+        let (batch,targets)=build_v2_multi_leaf_recursive_batch(&f.leaf,2)
+            .expect("valid two-leaf V2 batch");
+        let first=prove_leaf(&f,500_000_000,300_000_001,199_999_998,1)
+            .expect("first exact native leaf");
+        let second=prove_leaf(&f,600_000_000,400_000_001,199_999_998,1)
+            .expect("second exact native leaf");
+        let mut pw=PartialWitness::new();
+        pw.set_proof_with_pis_target(&targets[0],&first).unwrap();
+        pw.set_proof_with_pis_target(&targets[1],&second).unwrap();
+        let proof=batch.prove(pw).expect("valid two-leaf recursive proof");
+        batch.verify(proof.clone()).expect("batch verifier must accept");
+        assert_eq!(proof.public_inputs.len(),2*V2_LEAF_PUBLIC_INPUT_LEN+2);
+        assert_eq!(proof.public_inputs[14],F::from_canonical_u64(1_099_999_998));
+        assert_eq!(proof.public_inputs[15],F::from_canonical_u64(2));
+        let mut changed_payout=proof.clone();
+        changed_payout.public_inputs[14]=F::from_canonical_u64(1_099_999_999);
+        assert!(batch.verify(changed_payout).is_err(),
+            "altered batch payout must fail recursive verification");
+        let mut changed_fee=proof;
+        changed_fee.public_inputs[15]=F::from_canonical_u64(3);
+        assert!(batch.verify(changed_fee).is_err(),
+            "altered batch fee must fail recursive verification");
+
+        // Both separate leaf proofs are individually valid, but their
+        // sum breaches 100M by exactly one 8-decimal base unit.
+        let max_leaf=prove_leaf(&f,DVN_MAX,DVN_MAX,0,0).unwrap();
+        let one_leaf=prove_leaf(&f,1,1,0,0).unwrap();
+        let mut overcap=PartialWitness::new();
+        overcap.set_proof_with_pis_target(&targets[0],&max_leaf).unwrap();
+        overcap.set_proof_with_pis_target(&targets[1],&one_leaf).unwrap();
+        let rejected=catch_unwind(AssertUnwindSafe(||batch.prove(overcap)));
+        assert!(rejected.is_err()||rejected.unwrap().is_err(),
+            "two valid leaves must not inflate batch payout past DVN cap");
+    }
+
+    #[test]
+    fn dvn_v2_batch_rejects_zero_one_or_oversized_leaf_count() {
+        let f=leaf_fixture();
+        for count in [0,1,MAX_LEAVES+1] {
+            assert!(build_v2_multi_leaf_recursive_batch(&f.leaf,count).is_err());
+        }
     }
 
     /// A malicious circuit may claim exactly the same seven PI positions,
