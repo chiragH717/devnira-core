@@ -10,6 +10,7 @@ on:
       - tests/test_windows_company_wallet.py
       - spec/verify_company_custody.py
       - tests/test_network_identity.py
+      - docs/WINDOWS_NATIVE_COMPANY_BUILD.md
       - .github/workflows/windows-wallet-preview.yml
   pull_request:
     paths:

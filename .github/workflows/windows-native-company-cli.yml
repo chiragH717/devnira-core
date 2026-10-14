@@ -1,0 +1,85 @@
+name: DEVNIRA native Windows Dilithium87 company key CLI (NOT MAINNET)
+on:
+  pull_request:
+    paths:
+      - .github/workflows/windows-native-company-cli.yml
+      - scripts/patch_dvn_wallet_cli.py
+      - scripts/patch_dvn_custody_signing.py
+      - scripts/guard_dvn_network_identity.py
+      - config/upstream-pins.json
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-cli-windows:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Windows Rust prerequisites
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.93.0 --profile minimal
+          rustup target add wasm32v1-none --toolchain 1.93.0
+          choco install protoc --yes --no-progress
+          $llvm = 'C:\Program Files\LLVM\bin'
+          if (-not (Test-Path "$llvm\libclang.dll")) { throw 'Missing LLVM/libclang; refuse native-wallet build' }
+          "LIBCLANG_PATH=$llvm" >> $env:GITHUB_ENV
+      - name: Clone exact audited development chain source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          git clone --depth 1 https://github.com/Quantus-Network/chain.git upstream
+          if ($LASTEXITCODE -ne 0) { throw 'Clone failed' }
+          $pin=(Get-Content config/upstream-pins.json | ConvertFrom-Json).upstream_chain.sha
+          git -C upstream fetch --depth 1 origin $pin
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned fetch failed' }
+          git -C upstream checkout --detach $pin
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned checkout failed' }
+          if ((git -C upstream rev-parse HEAD) -ne $pin) { throw 'Unexpected source HEAD' }
+      - name: Patch actual native custody generator, signer and foreign network lockout
+        shell: pwsh
+        run: |
+          python scripts/patch_dvn_wallet_cli.py upstream
+          if ($LASTEXITCODE -ne 0) { throw 'DVN keygen patch failed' }
+          python scripts/patch_dvn_custody_signing.py upstream
+          if ($LASTEXITCODE -ne 0) { throw 'DVN native signer patch failed' }
+          python scripts/guard_dvn_network_identity.py upstream
+          if ($LASTEXITCODE -ne 0) { throw 'Foreign network guard failed' }
+      - name: Build Windows native node (development CLI only)
+        shell: pwsh
+        working-directory: upstream
+        run: |
+          cargo +1.93.0 build --locked --release -p quantus-node
+          if ($LASTEXITCODE -ne 0) { throw 'Rust Windows node build failed' }
+      - name: Cryptographically verify REAL native CLI with PUBLIC test-only mnemonic
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $binary='upstream/target/release/quantus-node.exe'
+          if (-not (Test-Path $binary)) { throw 'Compiled native EXE absent' }
+          'bottom drive obey lake curtain smoke basket hold race lonely fit walk' |
+            & $binary key devnira --scheme standard --words --wallet-index 0 --verbose > test-public-address.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Native HD wallet test failed' }
+          python scripts/check_dvn_cli_address.py test-public-address.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Native address network check failed' }
+          Copy-Item $binary DEVNIRA-Offline-Key-CLI-NOT-MAINNET.exe
+          $hash=(Get-FileHash DEVNIRA-Offline-Key-CLI-NOT-MAINNET.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  DEVNIRA-Offline-Key-CLI-NOT-MAINNET.exe" | Out-File -Encoding ascii native-cli-sha256.txt
+          if (& $binary --chain mainnet build-spec 2>&1 | Out-String) { }
+          if ($LASTEXITCODE -eq 0) { throw 'CLI permitted a forbidden Quantus mainnet' }
+      - name: Upload TESTED unsigned native keygen tool — not a transaction wallet
+        uses: actions/upload-artifact@v4
+        with:
+          name: DEVNIRA-WINDOWS-NATIVE-DILITHIUM-CLI-NO-SEND-NOT-MAINNET
+          path: |
+            DEVNIRA-Offline-Key-CLI-NOT-MAINNET.exe
+            native-cli-sha256.txt
+          if-no-files-found: error
+          retention-days: 14
+      - name: State custody and chain limitations
+        shell: pwsh
+        run: |
+          "Native Windows CLI cryptography is pre-release; independently review source and binary before real company custody." >> $env:GITHUB_STEP_SUMMARY
+          "Company key must be created ONLY locally in an interactive terminal; do NOT use the test mnemonic, CI, chat or GitHub for secrets." >> $env:GITHUB_STEP_SUMMARY
+          "Quantus V1 12-decimal development runtime still exists in this executable; no independent active DVN chain or signed transfers." >> $env:GITHUB_STEP_SUMMARY
