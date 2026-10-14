@@ -24,9 +24,11 @@ def patch(root: Path) -> None:
     lib_file = root / "pallets/vesting/src/lib.rs"
     config_file = root / "runtime/src/configs/mod.rs"
     mock_file = root / "pallets/vesting/src/mock.rs"
+    preset_file = root / "runtime/src/genesis_config_presets/mod.rs"
     lib = lib_file.read_text()
     configs = config_file.read_text()
     mock = mock_file.read_text()
+    presets = preset_file.read_text()
     if "type ExactGenesisFunding:" in lib:
         raise ValueError("Already applied exact genesis vesting patch")
 
@@ -144,10 +146,30 @@ pub fn new_test_ext_exact(schedules: Vec<ScheduleTuple>) -> sp_io::TestExternali
     mock = replace_once(mock, "/// Like [`new_test_ext`], but genesis times are offsets",
                         insertion + "/// Like [`new_test_ext`], but genesis times are offsets",
                         "mock schedule fixture anchor")
+    # The real runtime genesis builder must follow the pallet's exact-pot
+    # funding option; otherwise a true V2 runtime would still add extra ED.
+    presets = replace_once(presets,
+        "\\tbalances.push((\\n\\t\\tpot_account,\\n"
+        "\\t\\tvesting_total\\n"
+        "\\t\\t\\t.checked_add(EXISTENTIAL_DEPOSIT)\\n"
+        "\\t\\t\\t.expect(\\\"vesting pot endowment overflows u128\\\"),\\n"
+        "\\t));",
+        "\\t// Match genesis pot funding to the actual FRAME vesting policy.\\n"
+        "\\tlet pot_funding = if <<crate::Runtime as pallet_vesting::Config>::ExactGenesisFunding\\n"
+        "\\t\\tas frame_support::traits::Get<bool>>::get() {\\n"
+        "\\t\\tvesting_total\\n"
+        "\\t} else {\\n"
+        "\\t\\tvesting_total.checked_add(EXISTENTIAL_DEPOSIT)\\n"
+        "\\t\\t\\t.expect(\\\"vesting pot endowment overflows u128\\\")\\n"
+        "\\t};\\n"
+        "\\tbalances.push((pot_account, pot_funding));",
+        "runtime genesis pot funding")
+
     # Validate ALL match anchors before changing any file.
     lib_file.write_text(lib)
     mock_file.write_text(mock)
     config_file.write_text(configs)
+    preset_file.write_text(presets)
     print("Applied opt-in exact-pot FRAME vesting semantics with no extra genesis ED.")
     print("Development runtime remains false. Production DVN activation and tests still required.")
 
