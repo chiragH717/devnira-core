@@ -113,6 +113,12 @@ def read_finalized_balance(
     validate_identity(chain, version, genesis, expected_genesis)
     if version.get("specName") != "devnira-runtime":
         raise ValueError("Unexpected runtime name")
+    properties = rpc_fn(endpoint, "system_properties")
+    if not isinstance(properties, dict) or (
+        properties.get("tokenSymbol"), properties.get("tokenDecimals"),
+        properties.get("ss58Format"),
+    ) != ("DVN", 8, 190):
+        raise ValueError("Connected runtime metadata does not describe 8-decimal DVN / SS58 190")
     at = rpc_fn(endpoint, "chain_getFinalizedHead")
     if not isinstance(at, str) or not HASH.fullmatch(at):
         raise ValueError("Invalid finalized block hash")
