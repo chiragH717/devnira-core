@@ -50,7 +50,8 @@ jobs:
       - name: Hash development-only V2 leaf and fixed-key recursive verifier artifacts
         run: |
           set -euo pipefail
-          find dvn-v2-verifier-candidate -maxdepth 1 -type f -printf '%f %s bytes\n'\n          test -s dvn-v2-verifier-candidate/v2-leaf-verifier.bin
+          ls -lh dvn-v2-verifier-candidate/
+          test -s dvn-v2-verifier-candidate/v2-leaf-verifier.bin
           test -s dvn-v2-verifier-candidate/v2-leaf-common.bin
           test -s dvn-v2-verifier-candidate/v2-recursive-verifier.bin
           test -s dvn-v2-verifier-candidate/v2-recursive-common.bin
