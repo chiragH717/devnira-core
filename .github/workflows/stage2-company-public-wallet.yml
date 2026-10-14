@@ -1,0 +1,44 @@
+name: DEVNIRA Stage2 signed company public wallet handoff
+on:
+  push:
+    branches: [main]
+    paths:
+      - spec/approved_company_genesis.py
+      - scripts/stage_company_genesis_local.py
+      - tests/test_stage_company_genesis_local.py
+      - docs/COMPANY_WALLET_LOCAL_SETUP.md
+      - .github/workflows/stage2-company-public-wallet.yml
+  pull_request:
+    paths:
+      - spec/approved_company_genesis.py
+      - scripts/stage_company_genesis_local.py
+      - tests/test_stage_company_genesis_local.py
+      - docs/COMPANY_WALLET_LOCAL_SETUP.md
+      - .github/workflows/stage2-company-public-wallet.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  secure-custody-input-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify signed-only treasury handoff and rejected unsafe genesis
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_stage_company_genesis_local.py' -v
+          python3 -m unittest discover -s tests -p 'test_company_custody_proof.py' -v
+          python3 -m unittest discover -s tests -p 'test_company_genesis_custody_manifest.py' -v
+          python3 -m py_compile spec/approved_company_genesis.py scripts/stage_company_genesis_local.py
+      - name: Prevent artificial live genesis without real owner
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path('config/genesis-proposal.json').read_text())
+          assert p['company_treasury']['public_address'] is None
+          assert p['genesis_timestamp_ms'] is None
+          print('PASS: company-controlled live address still awaits secure real-world ownership')
+          PY
