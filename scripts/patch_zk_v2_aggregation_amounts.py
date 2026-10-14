@@ -229,7 +229,18 @@ mod tests {
         ] {
             let proof=prove(case.0,case.1,case.2,case.3,case.4)
                 .expect("legitimate native fee must prove");
-            circuit.verify(proof).expect("native fee proof must verify");
+            circuit.verify(proof.clone()).expect("native fee proof must verify");
+            // The recursion public-input transcript binds both the exact
+            // payout and the BPS rate. A malicious relayer cannot replace
+            // a valid proof's fee policy with a different numeric value.
+            let mut changed_bps=proof.clone();
+            changed_bps.public_inputs[2]=F::from_canonical_u64(case.4+1);
+            assert!(circuit.verify(changed_bps).is_err(),
+                "tampered fee-rate public input must break proof");
+            let mut changed_payout=proof.clone();
+            changed_payout.public_inputs[1]=F::from_canonical_u64(case.1+case.2+1);
+            assert!(circuit.verify(changed_payout).is_err(),
+                "tampered payout public input must break proof");
         }
         for case in [
             (500_000_000,499_500_001,0,499_999,10),
