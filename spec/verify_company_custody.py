@@ -83,12 +83,14 @@ def verify_company_certificate(certificate: dict, node: Path, expected_node_sha2
     expires=certificate.get("expires_at_utc_ms")
     pub=certificate.get("public_key_hex")
     sig=certificate.get("signature_hex")
+    if certificate.get("schema") != "devnira-company-genesis-custody-challenge-v1":
+        raise UnverifiedCustody("Unexpected custody proof schema")
     if certificate.get("network")!=NETWORK or not isinstance(nonce,str) or not HEX64.fullmatch(nonce):
         raise UnverifiedCustody("Invalid network or challenge nonce")
     if type(expires) is not int or expires<=0:
         raise UnverifiedCustody("Invalid challenge expiry")
     current=now or datetime.now(timezone.utc)
-    if current.tzinfo is None:
+    if current.tzinfo is None or current.utcoffset() is None:
         raise UnverifiedCustody("Current time must be timezone aware")
     current_ms=int(current.astimezone(timezone.utc).timestamp()*1000)
     if not (current_ms < expires <= current_ms + 24*60*60*1000):
