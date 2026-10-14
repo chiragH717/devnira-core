@@ -44,7 +44,24 @@ jobs:
         run: rustup toolchain install 1.93.0 --profile minimal
       - name: Build, PROVE and VERIFY recursive V2 leaf and reject tampered payout/fee
         working-directory: zk-circuits
+        env:
+          DEVNIRA_TEST_ARTIFACT_DIR: ../dvn-v2-verifier-candidate
         run: cargo +1.93.0 test --locked -p qp-wormhole-aggregator --lib dvn_v2_actual_recursive_ -- --nocapture
+      - name: Hash development-only V2 leaf and fixed-key recursive verifier artifacts
+        run: |
+          set -euo pipefail
+          test -s dvn-v2-verifier-candidate/v2-leaf-verifier.bin
+          test -s dvn-v2-verifier-candidate/v2-leaf-common.bin
+          test -s dvn-v2-verifier-candidate/v2-recursive-verifier.bin
+          test -s dvn-v2-verifier-candidate/v2-recursive-common.bin
+          sha256sum dvn-v2-verifier-candidate/*.bin | tee dvn-v2-verifier-candidate/SHA256SUMS
+          echo 'Development V2 verifier key hashes generated from identical pinned sources; NOT the active on-chain verifier.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload PUBLIC-only DEVELOPMENT leaf and recursive verifier artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: DEVNIRA-V2-RECURSIVE-PUBLIC-VERIFIER-KEYS-NOT-MAINNET
+          path: dvn-v2-verifier-candidate/
+          if-no-files-found: error
       - name: Reject foreign V1 activation
         run: |
           set -euo pipefail
