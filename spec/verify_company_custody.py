@@ -31,9 +31,10 @@ def issue_challenge(public_address: str, *, now: datetime | None=None) -> dict:
         verified_company_public_address(public_address)
     except InvalidCompanyAddress as exc:
         raise UnverifiedCustody("Only a native DEVNIRA SS58 190 company address is allowed") from exc
-    stamp=(now or datetime.now(timezone.utc)).astimezone(timezone.utc)
-    if stamp.tzinfo is None:
+    supplied=now or datetime.now(timezone.utc)
+    if supplied.tzinfo is None or supplied.utcoffset() is None:
         raise UnverifiedCustody("UTC issuance timestamp required")
+    stamp=supplied.astimezone(timezone.utc)
     nonce=secrets.token_hex(32)
     expires=stamp + timedelta(hours=24)
     expires_ms=int(expires.timestamp()*1000)
