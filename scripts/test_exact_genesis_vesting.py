@@ -85,6 +85,30 @@ fn dvn_exact_pot_prevents_premature_reaping_below_ed() {{
         assert_ok!(Vesting::do_try_state());
     }});
 }}
+#[test]
+fn dvn_exact_pot_failed_zk_proof_does_not_move_or_mint_funds() {{
+    use crate::mock::*;
+    use frame_support::{{assert_noop, assert_ok}};
+    new_test_ext_exact(vec![
+        (BOB, 100_000, 500_000, 500_000, 10_000),
+    ]).execute_with(|| {{
+        let before = Balances::total_issuance();
+        set_time(500_000);
+        MockProofRecorder::set_drop_credits(true);
+        assert_noop!(
+            Vesting::claim(RuntimeOrigin::signed(PINGER), 0),
+            crate::Error::<Test>::TransferProofNotRecorded,
+        );
+        assert_eq!(Balances::free_balance(&pot()), 10_000);
+        assert_eq!(Balances::free_balance(&BOB), 0);
+        assert_eq!(Balances::total_issuance(), before);
+        MockProofRecorder::set_drop_credits(false);
+        assert_ok!(Vesting::claim(RuntimeOrigin::signed(PINGER), 0));
+        assert_eq!(Balances::free_balance(&pot()), 0);
+        assert_eq!(Balances::free_balance(&BOB), 10_000);
+        assert_eq!(Balances::total_issuance(), before);
+    }});
+}}
 // END DEVNIRA EXACT GENESIS POT CONSENSUS TESTS
 """
 
