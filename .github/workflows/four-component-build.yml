@@ -68,6 +68,10 @@ jobs:
       - name: Checkout exact upstream source
         run: |
           git clone --depth 1 https://github.com/Quantus-Network/chain.git upstream
+          PIN=$(python3 -c 'import json;print(json.load(open("config/upstream-pins.json"))["upstream_chain"]["sha"])')
+          git -C upstream fetch --depth 1 origin "$PIN"
+          git -C upstream checkout --detach "$PIN"
+          test "$(git -C upstream rev-parse HEAD)" = "$PIN"
           git -C upstream rev-parse HEAD | tee chain-revision.txt
       - name: Apply candidate rewards and protected monthly vesting
         run: |
