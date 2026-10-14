@@ -8,11 +8,13 @@ on:
       - scripts/patch_zk_leaf_amount_v2.py
       - scripts/patch_zk_native_hash_golden.py
       - scripts/patch_zk_native_conservation.py
+      - scripts/patch_zk_v2_aggregation_amounts.py
       - tests/test_zk_native_conservation_patch.py
       - tests/test_zk_native_hash_golden_patch.py
       - tests/test_zk_leaf_amount_patch.py
       - tests/test_zk_proof_inputs_v2.py
       - tests/test_zk_v2_public_input_parser.py
+      - tests/test_zk_v2_aggregation_amounts.py
       - .github/workflows/zk-proof-input-v2.yml
   workflow_dispatch:
 permissions:
@@ -31,6 +33,7 @@ jobs:
           python3 -m unittest discover -s tests -p 'test_zk_leaf_amount_patch.py' -v
           python3 -m unittest discover -s tests -p 'test_zk_native_hash_golden_patch.py' -v
           python3 -m unittest discover -s tests -p 'test_zk_native_conservation_patch.py' -v
+          python3 -m unittest discover -s tests -p 'test_zk_v2_aggregation_amounts.py' -v
       - name: Clone actual upstream ZK proof source
         run: |
           git clone --depth 1 https://github.com/Quantus-Network/qp-zk-circuits.git zk-circuits
@@ -49,18 +52,26 @@ jobs:
         run: python3 scripts/patch_zk_native_conservation.py zk-circuits
       - name: Migrate opt-in public proof parser to native u64 across leaf and both aggregation layers
         run: python3 scripts/patch_zk_v2_public_input_parser.py zk-circuits
+      - name: Inject native u64 guarded aggregate values and overflow-safe BPS into real aggregator source
+        run: python3 scripts/patch_zk_v2_aggregation_amounts.py zk-circuits
       - name: Compile actual DVN V2 leaf amount range gadget
         working-directory: zk-circuits
         run: cargo test -p qp-wormhole-circuit --lib dvn_ -- --nocapture
       - name: Test modified actual wormhole public-input Rust crate
         working-directory: zk-circuits
         run: cargo test -p qp-wormhole-inputs --lib dvn_v2 -- --nocapture
+      - name: Prove exact 8-decimal private/public aggregate and overflow-safe BPS on real Plonky2
+        working-directory: zk-circuits
+        run: cargo +1.93.0 test --locked -p qp-wormhole-aggregator --lib dvn_v2_ -- --nocapture
       - name: Confirm existing V1 proof fields are deliberately not migrated yet
         run: |
           grep -q 'pub input_amount: u32' zk-circuits/wormhole/inputs/src/lib.rs
           grep -q 'pub mod devnira_v2;' zk-circuits/wormhole/inputs/src/lib.rs
           grep -q 'pub mod devnira_v2_public_inputs;' zk-circuits/wormhole/inputs/src/lib.rs
           grep -q 'pub input_amount: u64' zk-circuits/wormhole/inputs/src/devnira_v2_public_inputs.rs
+          grep -q 'pub mod devnira_v2_segment;' zk-circuits/wormhole/aggregator/src/lib.rs
+          grep -q 'builder.range_check(final_sum, 32)' zk-circuits/wormhole/aggregator/src/private_batch/circuit/circuit_logic.rs
+          echo 'Real V2 gadgets all passed. NOTE: active private/public recursion remains V1 and is NOT deployable.'
       - name: Compile opt-in V2 public input parser for wasm32/no_std
         run: |
           rustup toolchain install 1.93.0 --profile minimal
