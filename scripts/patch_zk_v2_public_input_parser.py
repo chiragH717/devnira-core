@@ -18,7 +18,7 @@ V2_RUST = r'''//! DEVNIRA V2 exact native eight-decimal amount public-input deco
 //! carrying exact native u64 base units, with a per-leaf 100M DVN hard cap.
 //! No amount is rounded, saturated, or silently converted back to u32.
 use alloc::vec::Vec;
-use anyhow::{bail, ensure, Context, Result};
+use anyhow::{ensure, Context, Result};
 use super::{
     hash_u64s_to_bytes_digest, public_batch_pi, validate_proof_count,
     BytesDigest, ASSET_ID_INDEX, OUTPUT_AMOUNT_1_INDEX, OUTPUT_AMOUNT_2_INDEX,
@@ -166,7 +166,11 @@ impl DvnV2PrivateBatchPublicInputs {
             nullifiers.push(digest(&pis[cursor..cursor+4])?);
             cursor+=4;
         }
-        ensure!(cursor==pis.len(),"DVN V2 private-batch trailing public inputs");
+        // The recursive private-batch wrapper retains historical length
+        // 8 + 22*N, and fills unused public-input slots with literal ZERO.
+        // Reject nonzero padding as malleable/foreign-format proof data.
+        ensure!(pis[cursor..].iter().all(|v| *v == 0),
+            "DVN V2 private-batch nonzero canonical padding");
         bound_aggregate_total(exits.iter().map(|x|x.amount))?;
         Ok(Self{num_exit_slots,asset_id,volume_fee_bps,block_hash,block_number,exits,nullifiers})
     }
@@ -279,6 +283,9 @@ mod tests {
         assert!(DvnV2PrivateBatchPublicInputs::try_from_u64_slice(&pis).is_err());
         pis[13]=1;pis[8]=DVN_MAX_BASE_UNITS + 1;
         assert!(DvnV2PrivateBatchPublicInputs::try_from_u64_slice(&pis).is_err());
+        pis[8]=5_000_000_000;pis[22]=1;
+        assert!(DvnV2PrivateBatchPublicInputs::try_from_u64_slice(&pis).is_err(),
+            "nonzero wrapper PI padding may enable proof malleability");
     }
     #[test]
     fn dvn_v2_public_batch_u64_exits_are_not_u32() {
