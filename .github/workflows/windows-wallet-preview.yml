@@ -1,0 +1,54 @@
+name: DEVNIRA Windows wallet receive and balance preview
+on:
+  push:
+    branches: [main]
+    paths:
+      - wallet/**
+      - spec/ss58_company_account.py
+      - tests/test_wallet_balance.py
+      - tests/test_wallet_rpc_diagnostics.py
+      - tests/test_network_identity.py
+      - .github/workflows/windows-wallet-preview.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows-readonly-wallet:
+    name: Verify DVN genesis-pinned balance and build Windows EXE (READ-ONLY)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Windows account + network validation tests
+        shell: pwsh
+        run: |
+          python -m unittest discover -s tests -p "test_wallet_balance.py" -v
+          python -m unittest discover -s tests -p "test_wallet_rpc_diagnostics.py" -v
+          python -m unittest discover -s tests -p "test_network_identity.py" -v
+          python -m unittest discover -s tests -p "test_ss58_company_account.py" -v
+          python -m compileall -q wallet spec
+      - name: Package preview executable — NEVER a signing wallet
+        shell: pwsh
+        run: |
+          python -m pip install pyinstaller
+          python -m PyInstaller --clean --noconfirm --onefile --windowed --name DEVNIRA-ReadOnly-Wallet-Preview wallet/devnira_windows.py
+          if (-not (Test-Path 'dist/DEVNIRA-ReadOnly-Wallet-Preview.exe')) { throw 'Missing compiled EXE' }
+      - name: Record built executable digest
+        shell: pwsh
+        run: |
+          Get-FileHash 'dist/DEVNIRA-ReadOnly-Wallet-Preview.exe' -Algorithm SHA256 |
+            Format-List | Out-File -Encoding utf8 'devnira-windows-readonly-sha256.txt'
+          Get-Content 'devnira-windows-readonly-sha256.txt'
+      - name: Upload pre-release wallet preview and digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: DEVNIRA-Windows-Receive-Balance-NOT-SIGNING-NOT-MAINNET
+          path: |
+            dist/DEVNIRA-ReadOnly-Wallet-Preview.exe
+            devnira-windows-readonly-sha256.txt
+          if-no-files-found: error
+      - name: Explicit release disclaimer
+        shell: pwsh
+        run: |
+          "Windows executable compiled with public receiving-account and finalized balance preview only." >> $env:GITHUB_STEP_SUMMARY
+          "NO private-key storage, signed send, independent DVN genesis, working ZK withdrawals or GPU-mining release." >> $env:GITHUB_STEP_SUMMARY
