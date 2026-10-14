@@ -51,9 +51,9 @@ def patch(root: Path) -> None:
         "qp-wormhole-aggregator", "qp-zk-circuits-common",
     )
     for crate in proof_crates:
-        if not re.search(rf"^{re.escape(crate)}\\s*=\\s*\\{{[^\\n]*version\\s*=\\s*\"[^\"]+\"",manifest,re.M):
+        if not re.search(rf"^{re.escape(crate)}\s*=\s*\{{[^\n]*version\s*=\s*\"[^\"]+\"",manifest,re.M):
             raise ValueError(f"STOP: pinned proof version for {crate} is missing or changed")
-        if re.search(rf"^{re.escape(crate)}\\s*=\\s*\\{{[^\\n]*version\\s*=\\s*\"=4\\.3\\.0\"",manifest,re.M):
+        if re.search(rf"^{re.escape(crate)}\s*=\s*\{{[^\n]*version\s*=\s*\"=4\.3\.0\"",manifest,re.M):
             raise ValueError(
                 f"STOP: {crate} still uses Quantus V1 4.3.0 proof layout; "
                 "full leaf/aggregate/prover/verifier migration required"
