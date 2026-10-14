@@ -1,0 +1,44 @@
+name: DEVNIRA Hostinger static website ZIP (NOT MAINNET)
+on:
+  push:
+    branches: [main]
+    paths:
+      - website/**
+      - scripts/package_hostinger_website.py
+      - tests/test_package_hostinger_website.py
+      - .github/workflows/hostinger-static-website-package.yml
+  pull_request:
+    paths:
+      - website/**
+      - scripts/package_hostinger_website.py
+      - tests/test_package_hostinger_website.py
+      - .github/workflows/hostinger-static-website-package.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    name: Validate and build static Hostinger public_html archive
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m unittest discover -s tests -p test_package_hostinger_website.py -v
+      - name: Create deterministic public_html-root ZIP
+        run: python3 scripts/package_hostinger_website.py --output devnira-hostinger-static-NOT-MAINNET.zip
+      - name: Verify contents and SHA256
+        run: |
+          set -euo pipefail
+          sha256sum -c devnira-hostinger-static-NOT-MAINNET.zip.sha256
+          unzip -Z -1 devnira-hostinger-static-NOT-MAINNET.zip | tee site-files.txt
+          grep -qx 'index.html' site-files.txt
+          grep -qx 'styles.css' site-files.txt
+          grep -qx 'app.js' site-files.txt
+          test "$(wc -l < site-files.txt)" -eq 3
+      - name: Upload Hostinger static-only site package
+        uses: actions/upload-artifact@v4
+        with:
+          name: DEVNIRA-HOSTINGER-STATIC-WEBSITE-NOT-MAINNET
+          path: |
+            devnira-hostinger-static-NOT-MAINNET.zip
+            devnira-hostinger-static-NOT-MAINNET.zip.sha256
+          if-no-files-found: error
