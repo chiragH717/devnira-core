@@ -30,6 +30,8 @@ jobs:
         run: python3 scripts/patch_zk_leaf_amount_v2.py zk-circuits
       - name: Bind V2 Plonky2 leaf proof to the same native FRAME Poseidon2 hash
         run: python3 scripts/patch_zk_native_hash_golden.py zk-circuits
+      - name: Enforce native 8-decimal ZK value conservation and fee budget
+        run: python3 scripts/patch_zk_native_conservation.py zk-circuits
       - name: Run V2 circuit proof/verify tests including over-supply rejection
         working-directory: zk-circuits
         run: cargo test -p qp-wormhole-circuit --lib dvn_ -- --nocapture
