@@ -14,3 +14,7 @@ Consensus target: 12-second QPoW/Poseidon2; DEVNIRA prefix SS58-190; eight decim
 The isolated DEVNIRA **12-decimal development-node candidate** [compiled and rejected inherited Quantus live chains](https://github.com/chiragH717/devnira-core/actions/runs/38545679156). An independent 8-decimal DEVNIRA runtime/genesis, V2 on-chain proof migration, mainnet signing wallet, and hardware GPU mining are **not** completed.
 
 No unverified chain IDs, new production keys or wallet seeds should be committed. Never confuse a green development workflow or a read-only wallet preview with a launch-ready network.
+
+## DEVNIRA Windows wallet / company local custody
+
+A Windows **offline-company-public-wallet setup GUI** is packaged by [Windows wallet workflow](.github/workflows/windows-wallet-preview.yml). It copies an independently SHA256-checked native Rust key-generation command for the OWNER to run in their own interactive PowerShell, generates public custody challenge files and verifies public signed company certificates via the audited native Dilithium87 executable. **Private mnemonics never enter the GUI.** The separately compiled Rust CLI is required; this is **NOT a transaction-signing wallet, no SEND and not mainnet**. See [safe company setup](docs/COMPANY_WALLET_LOCAL_SETUP.md).
