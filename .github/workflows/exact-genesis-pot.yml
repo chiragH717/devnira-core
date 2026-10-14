@@ -38,6 +38,14 @@ jobs:
           grep -q 'type ExactGenesisFunding: Get<bool>' upstream/pallets/vesting/src/lib.rs
           grep -q 'new_test_ext_exact' upstream/pallets/vesting/src/mock.rs
           grep -q 'let pot_funding = if' upstream/runtime/src/genesis_config_presets/mod.rs
+          grep -Fq 'pub const VestingPalletId: PalletId = PalletId(*b"qvesting");' upstream/runtime/src/configs/mod.rs
+          python3 -m unittest discover -s tests -p 'test_vesting_pot_account.py' -v
+          python3 -m unittest discover -s tests -p 'test_actual_genesis_audit.py' -v
+          python3 - <<'PY'
+          from spec.vesting_pot import vesting_pot_ss58
+          print('Canonical DEVNIRA SS58-190 FRAME vesting sovereign account:',vesting_pot_ss58())
+          print('Production still gated: actual full DVN genesis and V2 ZK activation required')
+          PY
           grep -q 'dvn_exact_pot_all_twelve_monthly_grants_mint_no_extra_ed' upstream/pallets/vesting/src/tests.rs
           git -C upstream diff -- pallets/vesting/src runtime/src/configs/mod.rs runtime/src/genesis_config_presets/mod.rs > exact-pot-diff.patch
       - name: Install Rust 1.93 and native dependencies
