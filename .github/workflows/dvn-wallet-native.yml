@@ -4,6 +4,8 @@ on:
     branches: [main]
     paths:
       - scripts/patch_dvn_wallet_cli.py
+      - scripts/patch_dvn_custody_signing.py
+      - tests/test_dvn_custody_signing_patch.py
       - scripts/check_dvn_cli_address.py
       - scripts/prepare_company_genesis_custody.py
       - spec/verify_company_custody.py
@@ -23,6 +25,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m unittest discover -s tests -p 'test_dvn_wallet_cli_patch.py' -v
+          python3 -m unittest discover -s tests -p 'test_dvn_custody_signing_patch.py' -v
           python3 -m unittest discover -s tests -p 'test_dvn_wallet_cli_output.py' -v
           python3 -m unittest discover -s tests -p 'test_company_custody_proof.py' -v
           python3 -m unittest discover -s tests -p 'test_company_genesis_custody_manifest.py' -v
@@ -39,9 +42,12 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/patch_dvn_wallet_cli.py upstream
+          python3 scripts/patch_dvn_custody_signing.py upstream
           grep -q 'DEVNIRA_STANDARD_HD_COIN_TYPE' upstream/node/src/command.rs
           grep -q 'm/44' upstream/primitives/dilithium-crypto/src/scheme_macro.rs
           grep -q 'SS58Prefix: u8 = 190;' upstream/runtime/src/configs/mod.rs
+          grep -q 'DevniraSign {' upstream/node/src/cli.rs
+          grep -q 'devnira_verify_custody_challenge' upstream/node/src/command.rs
           git -C upstream diff -- node/src/command.rs node/src/cli.rs primitives/dilithium-crypto/src/scheme_macro.rs runtime/src/configs/mod.rs runtime/src/genesis_config_presets/mod.rs > native-dvn-wallet.patch
       - name: Install Rust compiler and node native dependencies
         run: |
@@ -59,23 +65,63 @@ jobs:
           printf '%s\n' 'bottom drive obey lake curtain smoke basket hold race lonely fit walk' |
             upstream/target/release/quantus-node key devnira --scheme standard --words --wallet-index 0 --verbose > dvn-ci-public-account.txt
           python3 scripts/check_dvn_cli_address.py dvn-ci-public-account.txt
-      - name: Sign/verify real Dilithium87 challenge with the same derived public account
+      - name: Sign and verify a real 24-hour company address-bound TEST challenge
         run: |
           set -euo pipefail
-          umask 077
-          file=$(mktemp)
-          trap 'rm -f "$file"' EXIT
-          printf '%s\n' 'bottom drive obey lake curtain smoke basket hold race lonely fit walk' > "$file"
+          # This is a PUBLISHED test-only recovery phrase, not a company secret.
+          # Native devnira-sign reads stdin; --message contains no secret.
+          addr=$(sed -n 's/^Address: //p' dvn-ci-public-account.txt | head -1)
           pub=$(sed -n 's/^Pub key: //p' dvn-ci-public-account.txt | head -1)
+          test -n "$addr"
           test -n "$pub"
-          msg='DEVNIRA-TEMPORARY-PUBLIC-TEST-KEY-V1'
-          sig=$(upstream/target/release/quantus-node key sign --suri "$file" --message "$msg")
-          upstream/target/release/quantus-node key verify "$sig" "$pub" --message "$msg"
-          if upstream/target/release/quantus-node key verify "$sig" "$pub" --message "$msg tampered"; then
-            echo 'FAIL: edited signature message verified' >&2
+          python3 scripts/prepare_company_genesis_custody.py challenge \
+            --company-public-address "$addr" --output devnira-public-test-challenge.json
+          msg=$(python3 -c 'import json;print(json.load(open("devnira-public-test-challenge.json"))["message"])')
+          output=$(printf '%s\n' 'bottom drive obey lake curtain smoke basket hold race lonely fit walk' |
+            upstream/target/release/quantus-node key devnira-sign --message "$msg" --wallet-index 0)
+          sig="${output#Signature: }"
+          test "$sig" != "$output"
+          upstream/target/release/quantus-node key devnira-verify \
+            --signature "$sig" --public-key "$pub" --message "$msg" --expected-address "$addr"
+          if upstream/target/release/quantus-node key devnira-verify \
+            --signature "$sig" --public-key "$pub" --message "$msg|tampered" --expected-address "$addr"; then
+            echo 'FAIL: edited ownership challenge incorrectly verified' >&2
             exit 1
           fi
-          echo 'Public TEST key signing verifies and rejects forged challenge.' >> "$GITHUB_STEP_SUMMARY"
+          if upstream/target/release/quantus-node key devnira-verify \
+            --signature "$sig" --public-key "$pub" --message "$msg" --expected-address wrong-address; then
+            echo 'FAIL: wrong beneficiary address incorrectly verified' >&2
+            exit 1
+          fi
+          PUBLIC_KEY="$pub" PUBLIC_SIGNATURE="$sig" python3 - <<'PY'
+          import json, os
+          with open("devnira-public-test-challenge.json",encoding="utf-8") as f:
+              cert=json.load(f)
+          cert["public_key_hex"]=os.environ["PUBLIC_KEY"]
+          cert["signature_hex"]=os.environ["PUBLIC_SIGNATURE"]
+          with open("devnira-public-test-certificate.json","w",encoding="utf-8") as f:
+              json.dump(cert,f)
+          PY
+          sha=$(sha256sum upstream/target/release/quantus-node | cut -d ' ' -f1)
+          launch=$(python3 -c 'from datetime import datetime,timedelta,timezone;print((datetime.now(timezone.utc)+timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%S+00:00"))')
+          python3 scripts/prepare_company_genesis_custody.py manifest \
+            --signed-public-certificate devnira-public-test-certificate.json \
+            --trusted-node-binary upstream/target/release/quantus-node \
+            --trusted-node-sha256 "$sha" --genesis-utc "$launch" \
+            --output devnira-public-test-offchain-genesis-plan.json
+          python3 - <<'PY'
+          import json
+          from spec.genesis_allocations import INSTANT_BUDGET,VESTED_BUDGET
+          p=json.load(open("devnira-public-test-offchain-genesis-plan.json"))
+          assert p["production_genesis"] is False
+          assert p["company_address_verified"] is True
+          assert p["instant_total_units"] == INSTANT_BUDGET
+          assert p["locked_total_units"] == VESTED_BUDGET
+          assert len(p["monthly_unlocks"]) == 12
+          assert sum(x["amount_units"] for x in p["monthly_unlocks"]) == VESTED_BUDGET
+          print("PASS: actual native ML-DSA-87 signer, account+signature verification and 3M/7M public TEST custody manifest")
+          PY
+          echo 'PASS: real DVN native wallet signs/validates address-bound public TEST challenge, with independent SHA256-pinned Python verifier.' >> "$GITHUB_STEP_SUMMARY"
       - name: Ensure unmonitored CI cannot generate NEW production secrets
         run: |
           set -euo pipefail
