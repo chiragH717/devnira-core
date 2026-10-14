@@ -9,12 +9,27 @@ jobs:
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
-      - name: Checkout upstream source
-        run: git clone --depth 1 https://github.com/Quantus-Network/chain.git upstream
+      - name: Checkout pinned upstream source (never moving HEAD)
+        run: |
+          set -euo pipefail
+          PIN=$(python3 -c 'import json;print(json.load(open("config/upstream-pins.json"))["upstream_chain"]["sha"])')
+          git clone --depth 1 https://github.com/Quantus-Network/chain.git upstream
+          git -C upstream fetch --depth 1 origin "$PIN"
+          git -C upstream checkout --detach "$PIN"
+          test "$(git -C upstream rev-parse HEAD)" = "$PIN"
       - name: Record exact source revision
         run: git -C upstream rev-parse HEAD
       - name: Apply DEVNIRA candidate identity patch
         run: python3 scripts/prepare_upstream.py upstream
+      - name: Explicitly reject production build when company address/genesis is pending
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          g=json.loads(Path("config/genesis-proposal.json").read_text())
+          if not g["company_treasury"]["public_address"] or not g["genesis_timestamp_ms"]:
+              raise SystemExit("STOP: verified company public address and actual genesis timestamp are required")
+          PY
       - name: STOP if runtime economics and ZK amount encoding are not actually integrated
         run: python3 scripts/audit_production_runtime.py upstream
       - name: Install pinned Rust toolchain
@@ -28,7 +43,7 @@ jobs:
           echo "LIBCLANG_PATH=$(llvm-config --libdir)" >> "$GITHUB_ENV"
       - name: Compile native and WASM runtime
         working-directory: upstream
-        run: cargo +1.93.0 build --release -p quantus-node
+        run: cargo +1.93.0 build --release --locked -p quantus-node
       - name: Validate independent mainnet genesis
         run: |
           upstream/target/release/quantus-node build-spec --chain devnira-mainnet --disable-default-bootnode > devnira-mainnet.json
