@@ -3,6 +3,7 @@
 **Engineering status: PRE-RELEASE DEVELOPMENT — NOT MAINNET READY.**
 
 - [Complete project roadmap, status chart and launch blockers](docs/MASTER_ROADMAP.md): Blockchain, Active ZK V2, independent runtime/genesis, company signing wallet, NVIDIA/AMD two-node mining, mining pool, block explorer, website `devnira.co`, Android wallet, RPC, security and release.
+- [Combined public-product development candidates](docs/PUBLIC_PRODUCT_CANDIDATES.md): static site, local genesis-guarded read-only block API and offline pool accounting preview (none deployed or proof of DVN mining).
 - [Detailed Stage 2 engineering status](docs/FOUR_POINT_STATUS.md)
 - [Independent mainnet genesis policy](docs/GENESIS_STATUS.md)
 - [Current source-test and release evidence rules](docs/LAUNCH_READINESS.md)

@@ -9,6 +9,14 @@ jobs:
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
+      - name: Require verified whole-product release evidence manifest
+        run: |
+          set -euo pipefail
+          test -f config/release-evidence.json || {
+            echo "STOP: independent mainnet, wallets, miners, explorer, pool, website and security evidence not supplied."
+            exit 1
+          }
+          python3 scripts/release_evidence_gate.py config/release-evidence.json
       - name: Checkout pinned upstream source (never moving HEAD)
         run: |
           set -euo pipefail
