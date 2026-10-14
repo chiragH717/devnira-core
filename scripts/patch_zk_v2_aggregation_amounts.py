@@ -95,6 +95,66 @@ pub fn constrain_v2_public_batch_exits(
     }
     total
 }
+/// Multiply 54-bit native DVN x 14-bit fee coefficient into TWO exact
+/// base-2^32 limbs. A single Goldilocks multiplication would wrap for
+/// 100M DVN * 10000, so must never be used for the whole product.
+fn v2_mul_amount_by_bps(
+    b: &mut impl GadgetBuilder<F,D>, amount: Target, coeff: Target
+) -> (Target,Target) {
+    constrain_v2_native_amount(b,amount);
+    b.range_check(coeff,14);
+    let (lo,hi)=b.split_low_high(amount,32,54);
+    let low_product=b.mul(lo,coeff); // < 2^46, no field wrap
+    let (product_lo,carry)=b.split_low_high(low_product,32,46);
+    let high_product=b.mul(hi,coeff); // < 2^36
+    let product_hi=b.add(high_product,carry); // < 2^37
+    b.range_check(product_hi,37);
+    (product_lo,product_hi)
+}
+
+/// Prove A >= B where each A and B is represented as (u32_low, u37_high).
+/// The underlying integer product can be up to 10^20 (above Goldilocks P),
+/// but all arithmetic below stays < 2^38, so field wrap is impossible.
+fn v2_enforce_product_ge(
+    b: &mut impl GadgetBuilder<F,D>,
+    a: (Target,Target), b_product: (Target,Target),
+) {
+    let (a_lo,a_hi)=a;
+    let (b_lo,b_hi)=b_product;
+    let two_pow_32=b.constant(F::from_canonical_u64(1u64<<32));
+    let lo_plus_pow=b.add(a_lo,two_pow_32);
+    let low_delta=b.sub(lo_plus_pow,b_lo);
+    // 2^32 + a_lo - b_lo lies in [1, 2^33-1]; its highest bit
+    // is 1 exactly when there was NO low-limb borrow.
+    let (_,no_borrow)=b.split_low_high(low_delta,32,33);
+    let one=b.one();
+    let borrow=b.sub(one,no_borrow);
+    let high_delta=b.sub(a_hi,b_hi);
+    let high_after_borrow=b.sub(high_delta,borrow);
+    // Negative high differences wrap near P and cannot pass 37 bits.
+    b.range_check(high_after_borrow,37);
+}
+
+/// Actual volume-fee BPS inequality with NO modular overflow:
+/// output * 10000 <= input * (10000-bps).
+/// The fee amount itself must also be constrained by exact conservation.
+/// Shared BPS policy authorization still belongs to the runtime.
+pub fn constrain_v2_batch_volume_fee(
+    b: &mut impl GadgetBuilder<F,D>,
+    total_input: Target, total_output: Target, volume_fee_bps: Target,
+) {
+    use plonky2::field::types::Field;
+    constrain_v2_native_amount(b,total_input);
+    constrain_v2_native_amount(b,total_output);
+    b.range_check(volume_fee_bps,14);
+    let ten_thousand=b.constant(F::from_canonical_u64(10_000));
+    let fee_complement=b.sub(ten_thousand,volume_fee_bps);
+    b.range_check(fee_complement,14); // BPS must be <=10000
+    let lhs=v2_mul_amount_by_bps(b,total_output,ten_thousand);
+    let rhs=v2_mul_amount_by_bps(b,total_input,fee_complement);
+    v2_enforce_product_ge(b,rhs,lhs);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -104,6 +164,52 @@ mod tests {
         plonk::{circuit_builder::CircuitBuilder,circuit_data::CircuitConfig},
     };
     use zk_circuits_common::circuit::C;
+
+    #[test]
+    fn dvn_v2_fee_rate_handles_greater_than_field_products_without_wrapping() {
+        let mut b=CircuitBuilder::<F,D>::new(CircuitConfig::standard_recursion_config());
+        let inp=[b.add_virtual_target()];
+        let out=[b.add_virtual_target(),b.add_virtual_target()];
+        let fee=b.add_virtual_target();
+        let bps=b.add_virtual_target();
+        let (total_in,total_out)=
+            constrain_v2_private_batch_value(&mut b,&inp,&out,fee);
+        constrain_v2_batch_volume_fee(&mut b,total_in,total_out,bps);
+        b.register_public_input(total_in);
+        b.register_public_input(total_out);
+        b.register_public_input(bps);
+        let circuit=b.build::<C>();
+        let prove=|i:u64, o1:u64, o2:u64, f:u64,rate:u64| {
+            let mut pw=PartialWitness::new();
+            pw.set_target(inp[0],F::from_canonical_u64(i)).unwrap();
+            pw.set_target(out[0],F::from_canonical_u64(o1)).unwrap();
+            pw.set_target(out[1],F::from_canonical_u64(o2)).unwrap();
+            pw.set_target(fee,F::from_canonical_u64(f)).unwrap();
+            pw.set_target(bps,F::from_canonical_u64(rate)).unwrap();
+            circuit.prove(pw)
+        };
+        for case in [
+            (0,0,0,0,0),
+            (1,1,0,0,0),
+            (500_000_000,499_500_000,0,500_000,10),
+            (DVN_MAX,DVN_MAX-10_000_000_000_000,0,10_000_000_000_000,10),
+            (DVN_MAX,0,0,DVN_MAX,10_000),
+        ] {
+            let proof=prove(case.0,case.1,case.2,case.3,case.4)
+                .expect("legitimate native fee must prove");
+            circuit.verify(proof).expect("native fee proof must verify");
+        }
+        for case in [
+            (500_000_000,499_500_001,0,499_999,10),
+            (DVN_MAX,DVN_MAX-9_999_999_999_999,0,9_999_999_999_999,10),
+            (DVN_MAX,DVN_MAX,0,0,1),
+            (1,1,0,0,10_001),
+            (DVN_MAX,1,0,DVN_MAX-1,10_000),
+        ] {
+            assert!(prove(case.0,case.1,case.2,case.3,case.4).is_err(),
+                "insufficient fee / invalid BPS must be unprovable");
+        }
+    }
 
     #[test]
     fn dvn_v2_private_batch_proves_exact_u64_fee_and_value_conservation() {
