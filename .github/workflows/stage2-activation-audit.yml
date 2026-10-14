@@ -1,0 +1,63 @@
+name: DEVNIRA stage2 activation evidence audit (fail-closed)
+on:
+  push:
+    branches: [main]
+    paths:
+      - scripts/stage2_activation_audit.py
+      - scripts/build_genesis_inputs.py
+      - spec/genesis_candidate.py
+      - tests/test_genesis_candidate.py
+      - tests/test_stage2_activation_audit.py
+      - config/upstream-pins.json
+      - config/genesis-proposal.json
+      - .github/workflows/stage2-activation-audit.yml
+  pull_request:
+    paths:
+      - scripts/stage2_activation_audit.py
+      - scripts/build_genesis_inputs.py
+      - spec/genesis_candidate.py
+      - tests/test_genesis_candidate.py
+      - tests/test_stage2_activation_audit.py
+      - config/upstream-pins.json
+      - config/genesis-proposal.json
+      - .github/workflows/stage2-activation-audit.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source-integration-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test explicit off-chain genesis and active ZK source gates
+        run: |
+          python3 -m unittest discover -s tests -p 'test_genesis_candidate.py' -v
+          python3 -m unittest discover -s tests -p 'test_stage2_activation_audit.py' -v
+          python3 -m compileall -q spec scripts
+      - name: Verify pinned actual source (not moving upstream HEAD)
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/Quantus-Network/chain.git upstream
+          PIN=$(python3 -c 'import json;print(json.load(open("config/upstream-pins.json"))["upstream_chain"]["sha"])')
+          git -C upstream fetch --depth 1 origin "$PIN"
+          git -C upstream checkout --detach "$PIN"
+          test "$(git -C upstream rev-parse HEAD)" = "$PIN"
+      - name: Publish honest source migration blockers
+        run: |
+          python3 scripts/stage2_activation_audit.py upstream --report dvn-stage2-activation-evidence.json --expect-blocked
+          python3 -m json.tool dvn-stage2-activation-evidence.json > /dev/null
+          echo 'Stage 2 remains BLOCKED, not mainnet. See source audit artifact.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Verify real company genesis inputs cannot be fabricated
+        run: |
+          if python3 scripts/build_genesis_inputs.py --output impossible-genesis.json; then
+            echo 'SECURITY ERROR: missing company address/timestamp were accepted'
+            exit 1
+          fi
+          test ! -f impossible-genesis.json
+      - name: Upload source-only NOT MAINNET evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: devnira-stage2-actual-source-gates-NOT-MAINNET
+          path: dvn-stage2-activation-evidence.json
+          if-no-files-found: error
