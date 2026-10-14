@@ -38,6 +38,26 @@ def patch(root: Path) -> None:
         raise ValueError("STOP: production miner-only 90M cap not integrated")
     if "ImmutableGenesisScheduleCount" not in (root / "pallets/vesting/src/lib.rs").read_text():
         raise ValueError("STOP: protected founder genesis vesting not integrated")
+    # A quantum/u32 source edit alone cannot produce V2 cryptographic proofs.
+    # The pinned Quantus chain depends on qp-wormhole 4.3.0 while the
+    # pinned V2 candidate source is built from 4.4.0. Even after the old
+    # quantum is removed, never silently activate an 8-decimal native
+    # runtime while a legacy 4.3.0 prover/verifier can still be linked.
+    import re
+    manifest=(root / "Cargo.toml").read_text(encoding="utf-8")
+    proof_crates=(
+        "qp-wormhole-circuit", "qp-wormhole-inputs",
+        "qp-wormhole-prover", "qp-wormhole-verifier",
+        "qp-wormhole-aggregator", "qp-zk-circuits-common",
+    )
+    for crate in proof_crates:
+        if not re.search(rf"^{re.escape(crate)}\\s*=\\s*\\{{[^\\n]*version\\s*=\\s*\"[^\"]+\"",manifest,re.M):
+            raise ValueError(f"STOP: pinned proof version for {crate} is missing or changed")
+        if re.search(rf"^{re.escape(crate)}\\s*=\\s*\\{{[^\\n]*version\\s*=\\s*\"=4\\.3\\.0\"",manifest,re.M):
+            raise ValueError(
+                f"STOP: {crate} still uses Quantus V1 4.3.0 proof layout; "
+                "full leaf/aggregate/prover/verifier migration required"
+            )
 
     next_runtime = runtime
     for old, new, occurrences in REPLACEMENTS:
