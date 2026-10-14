@@ -34,10 +34,9 @@ use zeroize::{Zeroize, Zeroizing};
         self.command=node/"command.rs"
         self.crypto=self.root/"primitives/dilithium-crypto/src/scheme_macro.rs"
         self.crypto.parent.mkdir(parents=True)
-        self.crypto.write_text(
-            "// Default derivation path for Quantus: m/44'/189189'/0'/0'/0'\n"
-            "const DEFAULT_PATH: &str = \\"m/44'/189189'/0'/0'/0'\\";\n"
-        )
+        self.crypto.write_text("""// Default derivation path for Quantus: m/44'/189189'/0'/0'/0'
+const DEFAULT_PATH: &str = "m/44'/189189'/0'/0'/0'";
+""")
         self.cli.write_text("\tQuantus {\n")
         self.command.write_text(cmd)
 
