@@ -21,8 +21,12 @@ pass before considering it a completed **research** milestone.
 
 - Only **one Merkle level** is in this combined circuit; the separate
   multi-depth proof tests are still a different incompatible artifact.
-- It uses **fixed 1 base-unit fee** for test fixture and 4-bps placeholder,
-  not full dynamic chain fee policy. Production fee rules remain blocked.
+- This research circuit now **proves correct rounded-down 4-bps fee** in
+  exact 8-decimal base units, with an explicit 14-bit remainder, strict
+  remainder < 10,000, and fee ≤ 4e12 so all multiplication stays well
+  below the Goldilocks modulus. Real tests include fee/rounding tampering.
+  The 4-bps rate is still a FIXED research constant, not full dynamic
+  FRAME runtime fee governance or production withdrawal economics.
 - It proves that the public header hash commits to this private root; only
   the future on-chain verifier may decide whether that hash matches a
   genuine finalized historical DEVNIRA header.
