@@ -18,7 +18,7 @@ mod devnira_v2_realproof_frame_crypto_compat {
     use crate::{CommonCircuitData, VerifierCircuitData, VerifierOnlyCircuitData,
                 WormholeVerifier, DefaultGateSerializer};
     use qp_wormhole_verifier::{ProofWithPublicInputs, C, D, F};
-    use qp_plonky2::field::types::PrimeField64;
+    use qp_plonky2_verifier::field::types::PrimeField64;
     use sp_core::H256;
     use std::path::{Path,PathBuf};
 
