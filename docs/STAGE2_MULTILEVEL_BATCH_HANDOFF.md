@@ -67,3 +67,19 @@ to the real finalized chain and validating real prover/recursive keys.
 
 Both improvements remain proof/preflight development safety tests, not
 production V2 settlement, signed wallet transactions, or independent mainnet.
+
+## 2026-10-15 — exact pinned MAX_DEPTH=16
+
+The upstream 4-ary Merkle source declares MAX_DEPTH=16. A new composed
+proof-gadget test extends the SAME 22-field authenticated native DVN leaf
+from depths 1..3 to **depth=16** without adding any public fields, and
+tests negative deep siblings, positions, roots, coherent forged header,
+secret, nullifier, incorrect fee and out-of-range depth=0 or 17. The
+actual source patch is pinned to that exact upstream constant and refuses
+any mutation in MAX_DEPTH. Successful native Plonky2 proof verification
+at depth=16 is still not a **production recursive verifier key**, active
+on-chain V2, atomic nullifier settlement or actual DVN transfer.
+
+An additional real FRAME negative test also rejects references to
+current or FUTURE blocks as historical, even when a forged BlockHash
+storage record matches the claimed 32-byte hash.
