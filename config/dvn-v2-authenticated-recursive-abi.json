@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "classification": "DEVELOPMENT-ONLY / NO SEND / NOT ON-CHAIN",
+  "protocol": "DEVNIRA-authenticated-22PI-Plonky2-depth16-recursive-candidate",
+  "zk_upstream_commit": "fa5f57dc1a1b755ff1b7f4fdb4309e1e06669ba2",
+  "leaf_public_inputs": 22,
+  "proof_depth": 16,
+  "max_tested_batch_leaves": 2,
+  "field_layout": [
+    {
+      "index": 0,
+      "name": "asset_id"
+    },
+    {
+      "index": 1,
+      "name": "payout1_native_base_units"
+    },
+    {
+      "index": 2,
+      "name": "payout2_native_base_units"
+    },
+    {
+      "index": 3,
+      "name": "fee_rate_bps_research_fixed_4"
+    },
+    {
+      "index_start": 4,
+      "index_end": 7,
+      "name": "spent_nullifier_4_felts"
+    },
+    {
+      "index_start": 8,
+      "index_end": 11,
+      "name": "payout1_account_4_felts"
+    },
+    {
+      "index_start": 12,
+      "index_end": 15,
+      "name": "payout2_account_4_felts"
+    },
+    {
+      "index_start": 16,
+      "index_end": 19,
+      "name": "historical_header_hash_4_felts"
+    },
+    {
+      "index": 20,
+      "name": "historical_block_number"
+    },
+    {
+      "index": 21,
+      "name": "input_native_base_units"
+    }
+  ],
+  "recursive_layout": "concatenate authenticated leaf 22-PI records, then [total_payout_native_units,total_fee_native_units]",
+  "production_verifier_key_sha256": null,
+  "on_chain_settlement_enabled": false,
+  "required_for_activation": [
+    "Compatible private/public production aggregator",
+    "Independently reviewed production verifier key hashes and serialization",
+    "Real FRAME proof-byte verification bound to historical finalized DEVNIRA state",
+    "Atomic UsedNullifiers storage and exact balance transfers native/WASM",
+    "Signed spendable independent 8-decimal chain and genesis ownership verification"
+  ],
+  "safety_notice": "Development verifier key fingerprints do not constitute approved production keys or mainnet authorization."
+}
