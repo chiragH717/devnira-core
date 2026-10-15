@@ -1,0 +1,5 @@
+{
+  "schema": "devnira-pinned-external-auditors-v1",
+  "approved_ed25519_auditors": [],
+  "note": "Fail closed. Only after procurement, independent key verification and protected-branch audit may real external reviewer public keys be added. NEVER insert test signer keys or any private keys."
+}
