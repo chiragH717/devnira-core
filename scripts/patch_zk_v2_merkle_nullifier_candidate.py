@@ -258,7 +258,7 @@ def patch(root: Path) -> None:
         raise ValueError("STOP: native amount conservation must be constrained first")
     if "pub const DVN_NATIVE_MAX:" not in source:
         raise ValueError("STOP: canonical 8-decimal DVN cap source missing")
-    file.write_text(source+"\\n"+TEST,encoding="utf-8")
+    file.write_text(source+"\n"+TEST,encoding="utf-8")
     print("Staged cryptographic one-level 4ary V2 Merkle + chain-domain nullifier candidate; NOT live.")
 
 if __name__ == "__main__":
