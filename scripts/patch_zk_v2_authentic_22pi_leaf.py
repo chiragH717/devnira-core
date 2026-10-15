@@ -29,6 +29,7 @@ mod devnira_v2_22pi_authenticated_spend_tests {
         circuit::{F,C,D},
         gadget_builder::GadgetBuilder,
         serialization::digest_to_bytes,
+        gadgets::enforce_target_less_than_const,
         utils::string_to_felts,
     };
     use crate::block_header::{BlockHeader,BlockHeaderTargets};
@@ -37,12 +38,12 @@ mod devnira_v2_22pi_authenticated_spend_tests {
     use crate::unspendable_account::{UnspendableAccount,UnspendableAccountTargets,UNSPENDABLE_SALT};
 
     const FELTS:usize=22;
-    const TEST_FEE_BASE_UNITS:u64=1;
+    const TEST_FEE_BPS:u64=4;
     const V2_FEE_BPS:u64=4;
     struct AuthTargets {
         pi:[Target;FELTS],
         secret:HashOutTarget, account:HashOutTarget, count:[Target;2],
-        fee:Target, sibling:[HashOutTarget;3], position:Target,
+        fee:Target, remainder:Target, sibling:[HashOutTarget;3], position:Target,
         committed_root:HashOutTarget,
         parent:HashOutTarget, state:HashOutTarget, extrinsics:HashOutTarget,
         digest:[Target;28],
@@ -65,8 +66,21 @@ mod devnira_v2_22pi_authenticated_spend_tests {
             account.elements,count,pi[0],pi[21],pi[1],pi[2],fee);
         let nonzero_input=b.is_equal(pi[21],native);
         b.assert_zero(nonzero_input.target);
-        let fixed_fee=b.constant(F::from_canonical_u64(TEST_FEE_BASE_UNITS));
-        b.connect(fee,fixed_fee);
+        // Prove 4 bps fee as an exact floor integer division, without
+        // Goldilocks modular-overflow aliases. Enforce
+        // input*4 = fee*10000 + remainder, 0 <= remainder < 10000.
+        // cap 1e16 *4 =4e16 < Goldilocks. Explicitly cap the fee at
+        // 4e12 before multiplication so fee*10000 < field prime as well.
+        let remainder=b.add_virtual_target();
+        let ten_thousand=b.constant(F::from_canonical_u64(10_000));
+        b.range_check(remainder,14);
+        enforce_target_less_than_const(&mut b,remainder,10_000,14);
+        b.range_check(fee,42);
+        enforce_target_less_than_const(&mut b,fee,4_000_000_000_001,42);
+        let input_times_rate=b.mul(pi[21],expected_rate);
+        let fee_times_denom=b.mul(fee,ten_thousand);
+        let quotient_plus_rem=b.add(fee_times_denom,remainder);
+        b.connect(input_times_rate,quotient_plus_rem);
 
         // Proven secret derives the SAME deposit leaf account and nullifier.
         UnspendableAccount::constraints(&UnspendableAccountTargets{
@@ -150,7 +164,7 @@ mod devnira_v2_22pi_authenticated_spend_tests {
         }
         let data=b.build::<C>();
         assert_eq!(data.common.num_public_inputs,FELTS);
-        (data,AuthTargets{pi,secret,account,count,fee,sibling,position,
+        (data,AuthTargets{pi,secret,account,count,fee,remainder,sibling,position,
                           committed_root,parent,state,extrinsics,digest})
     }
     fn f(n:u64)->F{F::from_canonical_u64(n)}
@@ -169,11 +183,11 @@ mod devnira_v2_22pi_authenticated_spend_tests {
         preimage.extend_from_slice(&count);
         double_hash(&preimage)
     }
-    fn make_path(account:HashOut<F>)->([HashOut<F>;3],u8,HashOut<F>){
+    fn make_path(account:HashOut<F>,amount:u64)->([HashOut<F>;3],u8,HashOut<F>){
         let leaf=Poseidon2Hash::hash_no_pad(&[
             account.elements[0],account.elements[1],
             account.elements[2],account.elements[3],
-            f(0),f(1),f(0),f(500_000_000)
+            f(0),f(1),f(0),f(amount)
         ]);
         let mut children=[leaf,Poseidon2Hash::hash_no_pad(&[f(61)]),
                           Poseidon2Hash::hash_no_pad(&[f(62)]),
@@ -203,7 +217,8 @@ mod devnira_v2_22pi_authenticated_spend_tests {
         let count=[f(0),f(1)];
         let account=secret_account(secret);
         let nullifier=nullifier(secret,count);
-        let (siblings,pos,root)=make_path(account);
+        let actual_amount=if fault=="round"{500_000_001}else{500_000_000};
+        let (siblings,pos,root)=make_path(account,actual_amount);
         let parent=Poseidon2Hash::hash_no_pad(&[f(1)]);
         let state=Poseidon2Hash::hash_no_pad(&[f(2)]);
         let extrinsics=Poseidon2Hash::hash_no_pad(&[f(3)]);
@@ -211,7 +226,7 @@ mod devnira_v2_22pi_authenticated_spend_tests {
         let mut values=[F::ZERO;FELTS];
         values[0]=F::ZERO;
         values[1]=f(if fault=="inflation"{300_000_002}else{300_000_001});
-        values[2]=f(199_999_998);
+        values[2]=f(if fault=="round"{199_800_000}else{199_799_999});
         values[3]=f(if fault=="bps"{5}else{4});
         values[4..8].copy_from_slice(&nullifier.elements);
         for i in 0..4{
@@ -220,7 +235,7 @@ mod devnira_v2_22pi_authenticated_spend_tests {
         }
         values[16..20].copy_from_slice(&bh.elements);
         values[20]=f(if fault=="height"{8}else{7});
-        values[21]=f(if fault=="input"{500_000_001}else{500_000_000});
+        values[21]=f(if fault=="input"{500_000_001}else{actual_amount});
         if fault=="nullifier"{values[4]=f(999);}
         if fault=="block"{values[16]=f(999);}
         if fault=="account"{values[8]=F::ZERO;values[9]=F::ZERO;
@@ -234,7 +249,9 @@ mod devnira_v2_22pi_authenticated_spend_tests {
         }else{HashOut{elements:secret}}).unwrap();
         w.set_hash_target(t.account,account).unwrap();
         w.set_target_arr(&t.count,&count).unwrap();
-        w.set_target(t.fee,f(TEST_FEE_BASE_UNITS)).unwrap();
+        w.set_target(t.fee,f(if fault=="bad_fee"{200_001}else{200_000})).unwrap();
+        w.set_target(t.remainder,f(if fault=="round"{4}
+            else if fault=="bad_remainder"{1}else{0})).unwrap();
         w.set_target(t.position,f(pos as u64)).unwrap();
         for (i,sib) in t.sibling.iter().enumerate(){
             w.set_hash_target(*sib,if fault=="path"&&i==0{
@@ -259,7 +276,15 @@ mod devnira_v2_22pi_authenticated_spend_tests {
         assert_eq!(proof.public_inputs.len(),22);
         assert_eq!(proof.public_inputs[0],F::ZERO);
         assert_eq!(proof.public_inputs[1],f(300_000_001));
-        assert_eq!(proof.public_inputs[2],f(199_999_998));
+        assert_eq!(proof.public_inputs[2],f(199_799_999));
+        // Fixed 4 bps policy charges 200,000 exact base units on 5 DVN.
+        assert_eq!(500_000_000u64*TEST_FEE_BPS/10_000,200_000u64);
+        assert!(DVN_NATIVE_MAX*TEST_FEE_BPS < 0xffff_ffff_0000_0001);
+        let round=data.prove(witness(&t,"round"))
+            .expect("rounding witness 5 DVN+1 base unit must prove");
+        data.verify(round.clone()).unwrap();
+        assert_eq!(round.public_inputs[21],f(500_000_001));
+        assert_eq!(round.public_inputs[2],f(199_800_000));
         assert_eq!(proof.public_inputs[3],f(4));
         assert_eq!(proof.public_inputs[20],f(7));
         assert_eq!(proof.public_inputs[21],f(500_000_000));
@@ -274,7 +299,7 @@ mod devnira_v2_22pi_authenticated_spend_tests {
         use std::panic::{catch_unwind,AssertUnwindSafe};
         let (data,t)=build();
         for attack in ["inflation","bps","height","input","nullifier","block",
-                       "account","secret","path","root"]{
+                       "account","secret","path","root","bad_fee","bad_remainder"]{
             let pw=witness(&t,attack);
             let r=catch_unwind(AssertUnwindSafe(||data.prove(pw)));
             assert!(r.is_err()||r.unwrap().is_err(),
