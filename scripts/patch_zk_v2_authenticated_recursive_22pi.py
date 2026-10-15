@@ -30,6 +30,13 @@ RUST_TESTS = r'''
             proofs.push(p);
         }
         if count==2 {
+            // PRODUCTION-CRITICAL: the two spends MUST refer to exactly the
+            // SAME finalized historical header and fee policy; independent
+            // self-valid roots at one height cannot authorize a shared batch.
+            for slot in [0usize,3,16,17,18,19,20] {
+                b.connect(proofs[0].public_inputs[slot],
+                          proofs[1].public_inputs[slot]);
+            }
             // Enforce that the two proof slots cannot claim the same
             // four-felt nullifier, even if their leaf proofs are genuine.
             let mut equal=b.one();
@@ -127,6 +134,8 @@ RUST_TESTS = r'''
         let first=inner.prove(witness(&t,"")).expect("first spend proof");
         let second=inner.prove(witness(&t,"next_count")).expect("second genuine count proof");
         assert_ne!(&first.public_inputs[4..8],&second.public_inputs[4..8]);
+        assert_eq!(&first.public_inputs[16..21],&second.public_inputs[16..21],
+                   "different owned deposits must have ONE historical root and header");
         inner.verify(first.clone()).unwrap();
         inner.verify(second.clone()).unwrap();
         let (batch,targets)=dvn_v2_recursive_authenticated_22pi(&inner,2);
@@ -221,6 +230,36 @@ def patch(root: Path) -> None:
     text = once(text,
         "f(0),f(1),f(0),f(amount)",
         "f(0),f(transfer_count),f(0),f(amount)")
+    # Both valid leaf proofs MUST share a genuine level-1 two-deposit
+    # Merkle tree, then identical ancestor paths. No fabricated second root.
+    text = once(text,
+        """        let mut current=Poseidon2Hash::hash_no_pad(&[
+            account.elements[0],account.elements[1],
+            account.elements[2],account.elements[3],
+            f(0),f(transfer_count),f(0),f(amount)
+        ]);""",
+        """        assert!(transfer_count==1 || transfer_count==2);
+        let leaf_for_count=|count:u64| Poseidon2Hash::hash_no_pad(&[
+            account.elements[0],account.elements[1],
+            account.elements[2],account.elements[3],
+            f(0),f(count),f(0),f(amount)
+        ]);
+        let mut current=leaf_for_count(transfer_count);""")
+    text = once(text,
+        """            let mut children=[current,
+                Poseidon2Hash::hash_no_pad(&[f(61+level as u64*3)]),
+                Poseidon2Hash::hash_no_pad(&[f(62+level as u64*3)]),
+                Poseidon2Hash::hash_no_pad(&[f(63+level as u64*3)])];""",
+        """            let mut children=if level==0 {
+                [current,leaf_for_count(if transfer_count==1{2}else{1}),
+                 Poseidon2Hash::hash_no_pad(&[f(61)]),
+                 Poseidon2Hash::hash_no_pad(&[f(62)])]
+            }else{
+                [current,
+                 Poseidon2Hash::hash_no_pad(&[f(61+level as u64*3)]),
+                 Poseidon2Hash::hash_no_pad(&[f(62+level as u64*3)]),
+                 Poseidon2Hash::hash_no_pad(&[f(63+level as u64*3)])]
+            };""")
     text = once(text,
         "make_path(account,actual_amount,t.siblings.len());",
         'make_path(account,actual_amount,t.siblings.len(),'
