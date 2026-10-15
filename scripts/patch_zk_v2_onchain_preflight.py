@@ -62,7 +62,12 @@ RUST = r'''
 				Error::<T>::NullifierAlreadyUsed);
 			let height: u32 = pis[20].try_into()
 				.map_err(|_| Error::<T>::InvalidProofPublicInputs)?;
-			let known = frame_system::Pallet::<T>::block_hash(BlockNumberFor::<T>::from(height));
+			// A claim about THIS or a future block is not historical,
+			// even if malformed storage or a relayer supplies matching bytes.
+			let historical_number = BlockNumberFor::<T>::from(height);
+			ensure!(historical_number < frame_system::Pallet::<T>::block_number(),
+				Error::<T>::BlockNotFound);
+			let known = frame_system::Pallet::<T>::block_hash(historical_number);
 			ensure!(known != T::Hash::default(), Error::<T>::BlockNotFound);
 			let mut claimed = [0u8;32];
 			for (i,limb) in pis[16..20].iter().enumerate() {
@@ -147,6 +152,25 @@ mod devnira_v2_pallet_abi_tests {
             old_quantized[21]=50;
             assert!(Wormhole::devnira_v2_leaf_chain_preflight(&old_quantized).is_err());
             assert_eq!(old_issuance,Balances::total_issuance());
+        });
+    }
+    #[test]
+    fn dvn_v2_abi_future_block_hash_cannot_authorize_a_spend() {
+        new_test_ext().execute_with(|| {
+            System::set_block_number(2);
+            pin_actual_block();
+            let valid = inputs();
+            assert!(Wormhole::devnira_v2_leaf_chain_preflight(&valid).is_ok());
+            let hash = frame_system::BlockHash::<Test>::get(1u64);
+            frame_system::BlockHash::<Test>::insert(2u64,hash);
+            frame_system::BlockHash::<Test>::insert(3u64,hash);
+            for forbidden in [2u64,3u64] {
+                let mut fake=valid;
+                fake[20]=forbidden;
+                assert!(Wormhole::devnira_v2_leaf_chain_preflight(&fake).is_err(),
+                    "current or future block is never valid historical proof: {forbidden}");
+            }
+            assert!(Wormhole::devnira_v2_leaf_chain_preflight(&valid).is_ok());
         });
     }
     #[test]

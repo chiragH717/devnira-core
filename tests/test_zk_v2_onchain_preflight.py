@@ -32,6 +32,7 @@ class RealFrameV2AbiTests(unittest.TestCase):
         for requirement in (MARKER, "pis.len() == 22",
                            "UsedNullifiers::<T>::contains_key(nullifier)",
                            "frame_system::Pallet::<T>::block_hash",
+                           "historical_number < frame_system::Pallet::<T>::block_number()",
                            "input > 0 && input <= MAX_NATIVE",
                            "total.checked_add(expected_fee) == Some(input)",
                            "known.as_ref() == claimed.as_ref()"):
@@ -39,7 +40,8 @@ class RealFrameV2AbiTests(unittest.TestCase):
         for test in ("dvn_v2_abi_valid_real_frame_storage_is_read_only",
                      "dvn_v2_abi_replay_and_wrong_history_are_rejected",
                      "dvn_v2_abi_bad_15pi_amount_network_and_nullifiers_rejected",
-                     "dvn_v2_abi_exact_4bps_fee_and_single_base_unit_rounding"):
+                     "dvn_v2_abi_exact_4bps_fee_and_single_base_unit_rounding",
+                     "dvn_v2_abi_future_block_hash_cannot_authorize_a_spend"):
             self.assertIn(test,tests)
         self.assertIn(TEST_MARKER,tests)
         with self.assertRaisesRegex(ValueError,"already staged"):

@@ -1,0 +1,53 @@
+name: DEVNIRA real full 16-depth authenticated 22PI Plonky2 proof (NOT MAINNET)
+on:
+  pull_request:
+    paths:
+      - scripts/patch_zk_v2_authenticated_full_depth_16.py
+      - tests/test_zk_v2_authenticated_full_depth_16.py
+      - .github/workflows/zk-v2-full-depth-16.yml
+      - config/upstream-pins.json
+      - docs/STAGE2_MULTILEVEL_BATCH_HANDOFF.md
+  push:
+    branches: [main]
+    paths:
+      - scripts/patch_zk_v2_authenticated_full_depth_16.py
+      - tests/test_zk_v2_authenticated_full_depth_16.py
+      - .github/workflows/zk-v2-full-depth-16.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  actual-max16-merkle-native-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fail-closed source and exact upstream MAX_DEPTH tests
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_zk_v2_authenticated_full_depth_16.py' -v
+          python3 -m py_compile scripts/patch_zk_v2_authenticated_full_depth_16.py
+      - name: Clone pinned ZK source with immutable commit
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/Quantus-Network/qp-zk-circuits.git zk-circuits
+          PIN=$(python3 -c 'import json; print(json.load(open("config/upstream-pins.json"))["zk_circuits"]["sha"])')
+          git -C zk-circuits fetch --depth 1 origin "$PIN"
+          git -C zk-circuits checkout --detach "$PIN"
+          test "$(git -C zk-circuits rev-parse HEAD)" = "$PIN"
+      - name: Compose single same pinned 22PI owner/nullifier/fee/full-depth header proof
+        run: |
+          set -euo pipefail
+          python3 scripts/patch_zk_leaf_amount_v2.py zk-circuits
+          python3 scripts/patch_zk_native_conservation.py zk-circuits
+          python3 scripts/patch_zk_v2_authentic_22pi_leaf.py zk-circuits
+          python3 scripts/patch_zk_v2_multilevel_authentic_22pi.py zk-circuits
+          python3 scripts/patch_zk_v2_authenticated_full_depth_16.py zk-circuits
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.93.0 --profile minimal
+      - name: Actual MAX_DEPTH=16 Plonky2 proof and corrupt sibling/secret/fee/root rejection
+        working-directory: zk-circuits
+        run: cargo +1.93.0 test --locked -p qp-wormhole-circuit --lib dvn_v2_full_leaf_22pi_ -- --nocapture
+      - name: Never infer activated mainnet from isolated proof tests
+        run: |
+          echo 'One cryptographically owned 22PI native leaf path was tested to pinned MAX_DEPTH 16. Does not compile/activate on-chain recursive VK, root finality settlement, signed wallets, 10M treasury genesis, GPUs or mainnet.' >> "$GITHUB_STEP_SUMMARY"
