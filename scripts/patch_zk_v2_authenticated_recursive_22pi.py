@@ -99,6 +99,15 @@ RUST_TESTS = r'''
                 inner.verifier_only.to_bytes().expect("serialize inner VK")).unwrap();
             std::fs::write(root.join("authenticated-22pi-recursive-vk.bin"),
                 outer.verifier_only.to_bytes().expect("serialize recursive VK")).unwrap();
+            // Export the actual cryptographically proved canonical 22 PI felts.
+            // FRAME consumes this fixture in read-only test mode; it MUST
+            // independently verify proof bytes before authorizing settlement.
+            use plonky2::field::types::PrimeField64;
+            let pi_lines=original.public_inputs.iter()
+                .map(|felt|felt.to_canonical_u64().to_string())
+                .collect::<Vec<_>>().join("\n");
+            std::fs::write(root.join("authenticated-22pi-real-leaf-pis.txt"),
+                format!("{pi_lines}\n")).unwrap();
             let gates=plonky2::util::serialization::DefaultGateSerializer;
             std::fs::write(root.join("authenticated-22pi-inner-common.bin"),
                 inner.common.to_bytes(&gates).expect("serialize inner common")).unwrap();
