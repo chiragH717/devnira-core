@@ -23,6 +23,7 @@ mod devnira_v2_merkle_nullifier_tests {
     };
     use zk_circuits_common::{
         circuit::{F,C,D},
+        gadget_builder::GadgetBuilder,
         serialization::digest_to_bytes,
     };
     use core::array;
