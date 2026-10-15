@@ -82,6 +82,11 @@ def index_finalized_batch(rpc: GuardedRpc, db_path: Path, *, limit: int = 100) -
         raise IndexRejected("Malformed independent finalized-chain identity")
     if not _same(genesis, rpc.identity.genesis_hash):
         raise IndexRejected("RPC genesis differs from independently pinned chain")
+    # Even if a malicious/buggy RPC reports a matching genesis in its status,
+    # re-check height zero against the canonical block-hash database method.
+    # A mocked client's untruthful identity must not bypass this invariant.
+    if not _same(_chain_hash(rpc,0),genesis):
+        raise IndexRejected("Node genesis hash changed despite reported chain identity")
     if not _same(_chain_hash(rpc,height), head):
         raise IndexRejected("Node disagrees with its own finalized head")
     db = _db_connect(db_path)
