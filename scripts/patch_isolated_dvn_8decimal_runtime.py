@@ -24,7 +24,8 @@ def patch(root:Path)->None:
     spec=root/"node/src/chain_spec.rs"
     cmd=root/"node/src/command.rs"
     manifest=root/"Cargo.toml"
-    texts={p:p.read_text(encoding="utf-8") for p in (rt,cfg,spec,cmd,manifest)}
+    legacy_preset=root/"runtime/src/genesis_config_presets/mainnet_vesting.rs"
+    texts={p:p.read_text(encoding="utf-8") for p in (rt,cfg,spec,cmd,manifest,legacy_preset)}
     if RUNTIME_MARKER in texts[rt] or FILTER_MARKER in texts[cfg]:
         raise ValueError("STOP: research-only 8-decimal runtime already applied")
     if "DEVNIRA PRE-RELEASE: only --chain dev or --chain devnira-local" not in texts[cmd]:
@@ -99,10 +100,43 @@ def patch(root:Path)->None:
     ):
         dev=change_once(dev,old,new,"DEVNIRA development chain spec "+old)
     chain=chain[:idx]+dev+chain[end:]
+
+    # Rust E0080 regression: the inherited Quantus mainnet spreadsheet has
+    # compile-time checks against 21M QTC at 12 decimals. Changing Runtime
+    # UNIT/MAX_SUPPLY to DVN must NOT reinterpret that old allocation as DVN,
+    # remove any of the checks, or mint its funds in the development chain.
+    # Isolate the old, UNREACHABLE preset's own original economics, while the
+    # CLI strictly rejects the 'mainnet' selector. This is NOT DVN genesis.
+    legacy=texts[legacy_preset]
+    legacy=change_once(legacy,
+        "use crate::{AccountId, MAX_SUPPLY, UNIT};",
+        "use crate::AccountId;",
+        "upstream Quantus mainnet allocation import")
+    import re
+    if legacy.count("pub const GENESIS_ALLOCATION: u128 = 27 * MAX_SUPPLY / 100;")!=1:
+        raise ValueError("STOP: legacy Quantus 21M genesis economics changed")
+    if legacy.count("const _: () = assert!(GENESIS_ALLOCATION == 5_670_000 * UNIT);")!=1:
+        raise ValueError("STOP: old Quantus allocation assertions changed")
+    legacy=re.sub(r"\\bMAX_SUPPLY\\b","LEGACY_QTC_MAX_SUPPLY",legacy)
+    legacy=re.sub(r"\\bUNIT\\b","LEGACY_QTC_UNIT",legacy)
+    legacy=legacy.replace("use crate::AccountId;",
+        "use crate::AccountId;\n"
+        "// INERT RESEARCH ONLY: isolated unreachable Quantus 12-decimal mainnet\n"
+        "// allocation. Preserve ALL original compile-time accounting checks.\n"
+        "// Never reuse these balances or beneficiaries in DVN genesis.\n"
+        "const LEGACY_QTC_UNIT: u128 = 1_000_000_000_000;\n"
+        "const LEGACY_QTC_MAX_SUPPLY: u128 = 21_000_000 * LEGACY_QTC_UNIT;",
+        1)
+    if "pub const GENESIS_ALLOCATION: u128 = 27 * LEGACY_QTC_MAX_SUPPLY / 100;" not in legacy:
+        raise ValueError("STOP: failed to isolate old mainnet supply from DVN runtime")
+    if "const _: () = assert!(GENESIS_ALLOCATION == 5_670_000 * LEGACY_QTC_UNIT);" not in legacy:
+        raise ValueError("STOP: no preserved original Quantus genesis invariant")
+    if "const _: () = assert!(vesting_total() + SEEDED_ACCOUNTS * SEED == GENESIS_ALLOCATION);" not in legacy:
+        raise ValueError("STOP: inherited allocation-sum assertion changed")
     # Recheck the pre-commit invariants before modifying any actual source.
     assert "RuntimeCall::Wormhole" not in filter_source
     assert 'matches!(call, RuntimeCall::Timestamp(_) | RuntimeCall::System(_))' in conf
-    for p,body in ((rt,s),(cfg,conf),(spec,chain)):
+    for p,body in ((rt,s),(cfg,conf),(spec,chain),(legacy_preset,legacy)):
         p.write_text(body,encoding="utf-8")
     print("Built isolated 8-decimal runtime source (DVN / SS58-190 / 100M metadata).")
     print("ALL USER FINANCIAL TRANSACTIONS DISABLED; V1 4.3 proofs still present.")

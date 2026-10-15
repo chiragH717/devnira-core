@@ -18,6 +18,12 @@ class ResearchOnlyDvnEightDecimalTests(unittest.TestCase):
                 '/// Hard cap on total issuance; mining emissions stop here.\n'
                 'pub const MAX_SUPPLY: Balance = 21_000_000 * UNIT;\n'
             ),
+            "runtime/src/genesis_config_presets/mainnet_vesting.rs": (
+                "use crate::{AccountId, MAX_SUPPLY, UNIT};\n"
+                "pub const GENESIS_ALLOCATION: u128 = 27 * MAX_SUPPLY / 100;\n"
+                "const _: () = assert!(GENESIS_ALLOCATION == 5_670_000 * UNIT);\n"
+                "const _: () = assert!(vesting_total() + SEEDED_ACCOUNTS * SEED == GENESIS_ALLOCATION);\n"
+            ),
             "runtime/src/configs/mod.rs": (
                 "pub const SS58Prefix: u8 = 189;\n"
                 "#[derive_impl(frame_system::config_preludes::SolochainDefaultConfig)]\n"
@@ -58,6 +64,12 @@ class ResearchOnlyDvnEightDecimalTests(unittest.TestCase):
         self.assertIn('json!("DVN")',dev)
         self.assertIn('json!(190)',dev)
         self.assertIn('"devnira-8dec-inert-dev"',dev)
+        legacy=(self.root/"runtime/src/genesis_config_presets/mainnet_vesting.rs").read_text()
+        self.assertIn("const LEGACY_QTC_UNIT: u128 = 1_000_000_000_000;",legacy)
+        self.assertIn("const LEGACY_QTC_MAX_SUPPLY: u128 = 21_000_000 * LEGACY_QTC_UNIT;",legacy)
+        self.assertIn("pub const GENESIS_ALLOCATION: u128 = 27 * LEGACY_QTC_MAX_SUPPLY / 100;",legacy)
+        self.assertIn("assert!(GENESIS_ALLOCATION == 5_670_000 * LEGACY_QTC_UNIT)",legacy)
+        self.assertNotIn("27 * MAX_SUPPLY",legacy)
         self.assertIn("SCALE_DOWN_FACTOR", (self.root/"pallets/wormhole/src/lib.rs").read_text())
         with self.assertRaisesRegex(ValueError,"already applied"):
             patch(self.root)
@@ -68,6 +80,14 @@ class ResearchOnlyDvnEightDecimalTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,"disable all Quantus"):
             patch(self.root)
         self.assertEqual(before,(self.root/"runtime/src/lib.rs").read_text())
+
+    def test_drifted_quantus_mainnet_genesis_is_rejected_atomically(self):
+        old=(self.root/"runtime/src/lib.rs").read_bytes()
+        legacy=self.root/"runtime/src/genesis_config_presets/mainnet_vesting.rs"
+        legacy.write_text(legacy.read_text().replace("5_670_000","5_670_001"))
+        with self.assertRaisesRegex(ValueError,"allocation assertions changed"):
+            patch(self.root)
+        self.assertEqual((self.root/"runtime/src/lib.rs").read_bytes(),old)
 
     def test_rejects_missing_v1_proof_regime(self):
         (self.root/"pallets/wormhole/src/lib.rs").write_text("new real V2 proof")

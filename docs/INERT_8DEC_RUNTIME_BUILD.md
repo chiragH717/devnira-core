@@ -27,3 +27,7 @@ membership, sender authorization, used-nullifier anti-replay, genuine
 company-owned treasury, immutable 3M/7M issuance, 90M miner accounting,
 matching native/WASM verified genesis and adversarial two-node tests are
 required. All remain independently auditable gates.
+
+## Red 8-decimal CI build diagnosis and repair
+
+The initial full Rust native/WASM build failed with `error[E0080]` in the **inherited Quantus 21M-QTC mainnet vesting module**. That module had historical 12-decimal/21M allocation constants, but its assertion evaluated the *new* 8-decimal/100M DEVNIRA runtime constants. This patch isolates those **unreachable Quantus mainnet-only values** to the original 21M / 10^12 base unit inside the legacy preset and **retains every original invariant**; the CLI remains hard-blocked from loading inherited Quantus live chain specs. No Quantus premine, 27% allocation or old beneficiaries may be used for a DVN genesis. This repair is only for compiling the non-transacting research node; a genuine 10M company / 90M mining independent Genesis still must be implemented and audited.

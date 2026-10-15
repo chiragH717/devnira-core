@@ -39,6 +39,8 @@ jobs:
           python3 scripts/patch_isolated_dvn_8decimal_runtime.py upstream
           grep -q 'type BaseCallFilter = DvnResearchOnlyCallFilter;' upstream/runtime/src/configs/mod.rs
           grep -q 'pub const UNIT: Balance = 100_000_000;' upstream/runtime/src/lib.rs
+          grep -q 'LEGACY_QTC_MAX_SUPPLY: u128 = 21_000_000' upstream/runtime/src/genesis_config_presets/mainnet_vesting.rs
+          grep -q 'GENESIS_ALLOCATION == 5_670_000 \* LEGACY_QTC_UNIT' upstream/runtime/src/genesis_config_presets/mainnet_vesting.rs
       - name: Build native node with embedded WASM from the SAME source
         run: |
           rustup toolchain install 1.93.0 --profile minimal
