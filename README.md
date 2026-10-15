@@ -1,3 +1,7 @@
+## Launch-readiness and full-project handover
+
+**DEVNIRA mainnet is NOT LIVE; Stage 2 is not complete.** See [current launch blockers and next-chat handover](docs/PROJECT_HANDOVER_AND_LAUNCH_GATES.md). Original gold/blue website and coin logo are user-approved and must not be changed.
+
 # DEVNIRA (DVN) independent GPU-mined Layer-1
 
 **Engineering status: PRE-RELEASE DEVELOPMENT — NOT MAINNET READY.**
