@@ -1,0 +1,80 @@
+name: DEVNIRA authenticated depth-16 22PI fixed-key recursive integration (NOT SETTLEMENT)
+on:
+  pull_request:
+    paths:
+      - scripts/patch_zk_v2_authenticated_recursive_22pi.py
+      - tests/test_zk_v2_authenticated_recursive_22pi.py
+      - config/dvn-v2-authenticated-recursive-abi.json
+      - .github/workflows/stage2-authenticated-recursive-22pi.yml
+      - config/upstream-pins.json
+  push:
+    branches: [main]
+    paths:
+      - scripts/patch_zk_v2_authenticated_recursive_22pi.py
+      - tests/test_zk_v2_authenticated_recursive_22pi.py
+      - config/dvn-v2-authenticated-recursive-abi.json
+      - .github/workflows/stage2-authenticated-recursive-22pi.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  actual-native-plonky2-authenticated-recursion:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify fail-closed chained source migration and development ABI
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_zk_v2_authenticated_recursive_22pi.py' -v
+          python3 -m py_compile scripts/patch_zk_v2_authenticated_recursive_22pi.py
+          python3 - <<'PY'
+          import json
+          v=json.load(open("config/dvn-v2-authenticated-recursive-abi.json"))
+          assert v["leaf_public_inputs"] == 22
+          assert v["proof_depth"] == 16
+          assert v["max_tested_batch_leaves"] == 2
+          assert v["production_verifier_key_sha256"] is None
+          assert v["on_chain_settlement_enabled"] is False
+          print("Fail-closed: no production verifier key, settlement NOT enabled")
+          PY
+      - name: Fetch exact pinned native Plonky2 source
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/Quantus-Network/qp-zk-circuits.git zk-circuits
+          PIN=$(python3 -c 'import json;print(json.load(open("config/upstream-pins.json"))["zk_circuits"]["sha"])')
+          git -C zk-circuits fetch --depth 1 origin "$PIN"
+          git -C zk-circuits checkout --detach "$PIN"
+          test "$(git -C zk-circuits rev-parse HEAD)" = "$PIN"
+      - name: Apply SAME 22PI native secret plus 16-level Merkle plus fixed VK recursion
+        run: |
+          set -euo pipefail
+          python3 scripts/patch_zk_leaf_amount_v2.py zk-circuits
+          python3 scripts/patch_zk_native_conservation.py zk-circuits
+          python3 scripts/patch_zk_v2_authentic_22pi_leaf.py zk-circuits
+          python3 scripts/patch_zk_v2_multilevel_authentic_22pi.py zk-circuits
+          python3 scripts/patch_zk_v2_authenticated_full_depth_16.py zk-circuits
+          python3 scripts/patch_zk_v2_authenticated_recursive_22pi.py zk-circuits
+          git -C zk-circuits diff --stat
+      - name: Install locked Rust toolchain
+        run: rustup toolchain install 1.93.0 --profile minimal
+      - name: Real native Plonky2 full-depth fixed-key recursive proof, 2-leaf uniqueness and foreign key rejection
+        working-directory: zk-circuits
+        env:
+          DEVNIRA_TEST_ARTIFACT_DIR: dvn-v2-development-verifier-artifacts
+        run: |
+          set -euo pipefail
+          cargo +1.93.0 test --locked -p qp-wormhole-circuit --lib dvn_v2_recursive22_ -- --nocapture
+          test -s dvn-v2-development-verifier-artifacts/authenticated-22pi-inner-vk.bin
+          test -s dvn-v2-development-verifier-artifacts/authenticated-22pi-recursive-vk.bin
+          (cd dvn-v2-development-verifier-artifacts && sha256sum *.bin) | tee dvn-v2-development-verifier-artifacts/SHA256SUMS.txt
+      - name: Upload development verifier artifacts, not approved production keys
+        uses: actions/upload-artifact@v4
+        with:
+          name: DEVNIRA-REAL-AUTHENTICATED-22PI-RECURSIVE-DEV-VK-NOT-ONCHAIN
+          path: zk-circuits/dvn-v2-development-verifier-artifacts/
+          if-no-files-found: error
+      - name: State exact remaining production blocker
+        run: |
+          echo 'PASS (if reached) proves pinned native Plonky2 depth-16 authenticated leaf -> fixed-key recursive proof and two-leaf fee/replay constraints.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'BLOCKED: production private/public V2 aggregator, approved VK hash, FRAME native/WASM verifier, atomic state nullifier + balance settlement, spendable genesis, signed Send, mainnet.' >> "$GITHUB_STEP_SUMMARY"
