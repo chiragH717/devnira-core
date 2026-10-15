@@ -86,7 +86,7 @@ RUST_TESTS = r'''
         assert_eq!(proof.public_inputs[22],f(499_800_000));
         assert_eq!(proof.public_inputs[23],f(200_000));
         // A public output cannot be modified without invalidating recursion.
-        let mut tampered=proof;
+        let mut tampered=proof.clone();
         tampered.public_inputs[4]=f(999);
         assert!(outer.verify(tampered).is_err());
 
@@ -95,6 +95,10 @@ RUST_TESTS = r'''
         if let Ok(dir)=std::env::var("DEVNIRA_TEST_ARTIFACT_DIR") {
             let root=std::path::PathBuf::from(dir);
             std::fs::create_dir_all(&root).expect("artifact dir");
+            std::fs::write(root.join("authenticated-22pi-real-leaf-proof.bin"),
+                original.to_bytes()).unwrap();
+            std::fs::write(root.join("authenticated-22pi-recursive-proof.bin"),
+                proof.to_bytes()).unwrap();
             std::fs::write(root.join("authenticated-22pi-inner-vk.bin"),
                 inner.verifier_only.to_bytes().expect("serialize inner VK")).unwrap();
             std::fs::write(root.join("authenticated-22pi-recursive-vk.bin"),
@@ -134,6 +138,18 @@ RUST_TESTS = r'''
         assert_eq!(aggregate.public_inputs.len(),46);
         assert_eq!(aggregate.public_inputs[44],f(999_600_000));
         assert_eq!(aggregate.public_inputs[45],f(400_000));
+        // Export a second real, two-leaf recursion and its own exact VK.
+        if let Ok(dir)=std::env::var("DEVNIRA_TEST_ARTIFACT_DIR") {
+            let root=std::path::PathBuf::from(dir);
+            std::fs::create_dir_all(&root).unwrap();
+            std::fs::write(root.join("authenticated-22pi-two-leaf-proof.bin"),
+                aggregate.to_bytes()).unwrap();
+            std::fs::write(root.join("authenticated-22pi-two-leaf-vk.bin"),
+                batch.verifier_only.to_bytes().unwrap()).unwrap();
+            let gates=plonky2::util::serialization::DefaultGateSerializer;
+            std::fs::write(root.join("authenticated-22pi-two-leaf-common.bin"),
+                batch.common.to_bytes(&gates).unwrap()).unwrap();
+        }
         let mut changed=aggregate;
         changed.public_inputs[44]=f(999_600_001);
         assert!(batch.verify(changed).is_err());
