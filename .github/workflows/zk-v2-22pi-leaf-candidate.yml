@@ -1,0 +1,50 @@
+name: DEVNIRA real Plonky2 22-public-felt V2 proof ABI prototype (NOT ACTIVE)
+on:
+  pull_request:
+    paths:
+      - scripts/patch_zk_v2_22pi_leaf_candidate.py
+      - tests/test_zk_v2_22pi_leaf_candidate.py
+      - .github/workflows/zk-v2-22pi-leaf-candidate.yml
+      - docs/PROJECT_HANDOVER_AND_LAUNCH_GATES.md
+  push:
+    branches: [main]
+    paths:
+      - scripts/patch_zk_v2_22pi_leaf_candidate.py
+      - tests/test_zk_v2_22pi_leaf_candidate.py
+      - .github/workflows/zk-v2-22pi-leaf-candidate.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  actual-native-v2-22pi-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test fail-closed pinned layout and source patch
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_zk_v2_22pi_leaf_candidate.py' -v
+          python3 -m py_compile scripts/patch_zk_v2_22pi_leaf_candidate.py
+      - name: Checkout immutable pinned ZK source
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/Quantus-Network/qp-zk-circuits.git zk-circuits
+          PIN=$(python3 -c 'import json;print(json.load(open("config/upstream-pins.json"))["zk_circuits"]["sha"])')
+          git -C zk-circuits fetch --depth 1 origin "$PIN"
+          git -C zk-circuits checkout --detach "$PIN"
+          test "$(git -C zk-circuits rev-parse HEAD)" = "$PIN"
+      - name: Stage exact native leaf and canonical 22-PI Plonky2 proof constraints
+        run: |
+          set -euo pipefail
+          python3 scripts/patch_zk_leaf_amount_v2.py zk-circuits
+          python3 scripts/patch_zk_native_conservation.py zk-circuits
+          python3 scripts/patch_zk_v2_22pi_leaf_candidate.py zk-circuits
+      - name: Install Rust 1.93
+        run: rustup toolchain install 1.93.0 --profile minimal
+      - name: Real native Plonky2 proof and adversarial 22-felt input tests
+        working-directory: zk-circuits
+        run: cargo +1.93.0 test --locked -p qp-wormhole-circuit --lib dvn_v2_22pi_ -- --nocapture
+      - name: Warn that mainnet remains blocked
+        run: |
+          echo 'A green 22-felt proof-layout candidate is NOT V2 owner authorization, trusted Merkle-root membership, recursive verifier artifacts, on-chain settlement, or live DEVNIRA.' >> "$GITHUB_STEP_SUMMARY"
