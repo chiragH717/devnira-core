@@ -306,7 +306,8 @@ mod devnira_v2_real_crypto_atomic_escrow_tests {
 			historical_mock(&pis);
 			let old=Balances::total_issuance();
 			let mut bad=bytes.clone();
-			bad[bad.len()/2]^=1;
+			let corruption_offset=bad.len()/2;
+			bad[corruption_offset]^=1;
 			assert!(Wormhole::devnira_v2_settle_verified_escrow_test_only(
 				&bad,&verifier,1,&escrow,&fees).is_err());
 			let mut junk=bytes.clone();
