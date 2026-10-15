@@ -138,8 +138,8 @@ def patch(root: Path):
     text=text.replace("        let (data,t)=build();",
                       "        let (data,t)=build(2);")
     text=one(text,
-        '                       "account","secret","path","root","bad_fee","bad_remainder"]',
-        '                       "account","secret","path","position","root","bad_fee","bad_remainder"]')
+        '                       "account","secret","path","root","coherent_root","bad_fee","bad_remainder"]',
+        '                       "account","secret","path","position","root","coherent_root","bad_fee","bad_remainder"]')
     # Second test: depth 1 and 3 with the very same 22PI spend/proof gadget.
     target='    #[test]\n    fn dvn_v2_full_leaf_22pi_rejects_fake_spends_and_roots(){'
     if text.count(target)!=1:
