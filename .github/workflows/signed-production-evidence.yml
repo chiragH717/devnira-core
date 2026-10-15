@@ -1,0 +1,40 @@
+name: DEVNIRA externally signed production-evidence safety tests (NO MAINNET)
+on:
+  pull_request:
+    paths:
+      - scripts/verify_signed_release_evidence.py
+      - tests/test_verify_signed_release_evidence.py
+      - config/trusted-release-auditors.json
+      - .github/workflows/production-build.yml
+      - .github/workflows/signed-production-evidence.yml
+  push:
+    branches: [main]
+    paths:
+      - scripts/verify_signed_release_evidence.py
+      - tests/test_verify_signed_release_evidence.py
+      - config/trusted-release-auditors.json
+      - .github/workflows/production-build.yml
+      - .github/workflows/signed-production-evidence.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  fail-closed-external-signature-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ed25519 / OpenSSL, no test-only trust roots committed
+        run: |
+          set -euo pipefail
+          openssl version
+          python3 -m unittest discover -s tests -p 'test_verify_signed_release_evidence.py' -v
+          python3 -m py_compile scripts/verify_signed_release_evidence.py
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          keys=json.loads(Path("config/trusted-release-auditors.json").read_text())
+          assert keys["approved_ed25519_auditors"] == [], "STOP: auditor onboarding requires formal external verification and protected-branch approval"
+          assert not Path("config/release-evidence.json").exists(), "STOP: new release evidence requires independent review, do not enable automatically"
+          print("PASS: production remains fail-closed without signed external audit")
+          PY
