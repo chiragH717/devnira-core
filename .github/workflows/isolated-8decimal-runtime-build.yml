@@ -1,0 +1,76 @@
+name: DEVNIRA isolated 8-decimal native/WASM research runtime (NO SEND)
+on:
+  pull_request:
+    paths:
+      - scripts/patch_isolated_dvn_8decimal_runtime.py
+      - tests/test_isolated_dvn_8decimal_runtime.py
+      - .github/workflows/isolated-8decimal-runtime-build.yml
+  push:
+    branches: [main]
+    paths:
+      - scripts/patch_isolated_dvn_8decimal_runtime.py
+      - tests/test_isolated_dvn_8decimal_runtime.py
+      - .github/workflows/isolated-8decimal-runtime-build.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inert-native-wasm-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fail-closed inactive runtime source tests
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_isolated_dvn_8decimal_runtime.py' -v
+      - name: Fetch exact original locked Quantus chain source
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/Quantus-Network/chain.git upstream
+          PIN=$(python3 -c 'import json;print(json.load(open("config/upstream-pins.json"))["upstream_chain"]["sha"])')
+          git -C upstream fetch --depth 1 origin "$PIN"
+          git -C upstream checkout --detach "$PIN"
+          test "$(git -C upstream rev-parse HEAD)" = "$PIN"
+      - name: Enforce network isolation then stage inert DEVNIRA 8-decimal metadata
+        run: |
+          set -euo pipefail
+          python3 scripts/guard_dvn_network_identity.py upstream
+          python3 scripts/patch_isolated_dvn_8decimal_runtime.py upstream
+          grep -q 'type BaseCallFilter = DvnResearchOnlyCallFilter;' upstream/runtime/src/configs/mod.rs
+          grep -q 'pub const UNIT: Balance = 100_000_000;' upstream/runtime/src/lib.rs
+      - name: Build native node with embedded WASM from the SAME source
+        run: |
+          rustup toolchain install 1.93.0 --profile minimal
+          rustup target add wasm32v1-none --toolchain 1.93.0
+          sudo apt-get update
+          sudo apt-get install -y clang libclang-dev llvm-dev libssl-dev pkg-config protobuf-compiler libprotobuf-dev cmake build-essential
+          echo "LIBCLANG_PATH=$(llvm-config --libdir)" >> "$GITHUB_ENV"
+      - name: Compile independently named 8-decimal research runtime
+        working-directory: upstream
+        run: cargo +1.93.0 build --locked --release -p quantus-node
+      - name: Assert local development spec has DVN identity not foreign Quantus
+        run: |
+          set -euo pipefail
+          upstream/target/release/quantus-node build-spec --chain dev --disable-default-bootnode > dvn-8dec-inert-dev-spec.json
+          python3 - <<'PY'
+          import json
+          obj=json.load(open("dvn-8dec-inert-dev-spec.json"))
+          assert obj["name"] == "DEVNIRA isolated 8-decimal research / NO SEND"
+          assert obj["id"] == "devnira-8dec-inert-dev"
+          assert obj["properties"]["tokenDecimals"] == 8
+          assert obj["properties"]["tokenSymbol"] == "DVN"
+          assert obj["properties"]["ss58Format"] == 190
+          print("DEVNIRA 8 decimals COMPILED in isolated dev metadata; NO SEND; NOT A GENESIS RELEASE")
+          PY
+      - name: Prevent Quantus live network spec import
+        run: python3 scripts/check_native_windows_cli.py upstream/target/release/quantus-node
+      - name: Upload JSON evidence only, never an unsafe binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: DEVNIRA-8DEC-ISOLATED-INERT-RESEARCH-SPEC-NOT-MAINNET
+          path: dvn-8dec-inert-dev-spec.json
+          if-no-files-found: error
+      - name: Warn about unfinished consensus migration
+        run: |
+          echo 'This proves that independently identified 8-decimal runtime native/WASM can compile with no dispatchable user payments. Active ZK V2 and real Genesis remain BLOCKED; original V1 proofs are present but cannot be used for user transactions.' >> "$GITHUB_STEP_SUMMARY"
