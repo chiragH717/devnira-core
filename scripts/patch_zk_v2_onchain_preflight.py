@@ -34,6 +34,19 @@ RUST = r'''
 				.ok_or(Error::<T>::InvalidProofPublicInputs)?;
 			ensure!(input > 0 && input <= MAX_NATIVE, Error::<T>::InvalidProofPublicInputs);
 			ensure!(total > 0 && total <= input, Error::<T>::InvalidProofPublicInputs);
+			// DVN V2 canonical native fee is floor(input * BPS / 10_000).
+			// The original permissive check (outputs <= input) allowed an
+			// unbounded fee, including zero fee under a positive BPS rate.
+			// Enforce exact integer accounting at the actual FRAME gate.
+			// u128 multiplication is safe: input <= 10^16 and BPS <= 10^4.
+			let bps = pis[3] as u128;
+			ensure!(bps <= 10_000, Error::<T>::InvalidVolumeFeeRate);
+			let expected_fee = input.checked_mul(bps)
+				.ok_or(Error::<T>::InvalidProofPublicInputs)? / 10_000u128;
+			ensure!(
+				total.checked_add(expected_fee) == Some(input),
+				Error::<T>::InvalidProofPublicInputs
+			);
 			for (amount,start) in [(output1,8usize),(output2,12usize)] {
 				if amount > 0 {
 					ensure!(pis[start..start+4].iter().any(|v| *v != 0),
@@ -72,7 +85,7 @@ mod devnira_v2_pallet_abi_tests {
     fn inputs() -> [u64;22] {
         let mut pis=[0u64;22];
         pis[1]=300_000_001;
-        pis[2]=199_999_998;
+        pis[2]=199_799_999;
         pis[3]=4;
         pis[4..8].copy_from_slice(&[77,78,79,80]);
         pis[8]=101; pis[12]=102;
@@ -99,6 +112,41 @@ mod devnira_v2_pallet_abi_tests {
             let mut n=[0u8;32];
             for i in 0..4{n[8*i..8*i+8].copy_from_slice(&inputs()[4+i].to_le_bytes());}
             assert!(!Wormhole::used_nullifiers(n));
+        });
+    }
+    #[test]
+    fn dvn_v2_abi_exact_4bps_fee_and_single_base_unit_rounding() {
+        new_test_ext().execute_with(|| {
+            System::set_block_number(2);
+            pin_actual_block();
+            let original=inputs();
+            assert!(Wormhole::devnira_v2_leaf_chain_preflight(&original).is_ok());
+            let old_issuance=Balances::total_issuance();
+
+            // +1 base unit must round the fee DOWN rather than charge +1.
+            let mut rounding=original;
+            rounding[21]+=1;
+            rounding[2]+=1;
+            assert!(Wormhole::devnira_v2_leaf_chain_preflight(&rounding).is_ok());
+
+            // No-free-fee: all input given back to the exits is invalid.
+            let mut zero_fee=original;
+            zero_fee[2]=199_999_999;
+            assert!(Wormhole::devnira_v2_leaf_chain_preflight(&zero_fee).is_err());
+
+            // Missing one base unit of fee, or charging one too many, fails.
+            let mut underpaid=original;
+            underpaid[2]+=1;
+            assert!(Wormhole::devnira_v2_leaf_chain_preflight(&underpaid).is_err());
+            let mut overcharged=original;
+            overcharged[2]-=1;
+            assert!(Wormhole::devnira_v2_leaf_chain_preflight(&overcharged).is_err());
+
+            // A fake 10^10 Quantus V1 amount scale is never accepted.
+            let mut old_quantized=original;
+            old_quantized[21]=50;
+            assert!(Wormhole::devnira_v2_leaf_chain_preflight(&old_quantized).is_err());
+            assert_eq!(old_issuance,Balances::total_issuance());
         });
     }
     #[test]

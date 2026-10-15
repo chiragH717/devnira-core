@@ -41,3 +41,29 @@ Windows/Android signed wallet, real GPUs, public pool/explorer/RPC,
 original user-approved Gold/Blue website deployment and independent audit.
 
 Approved DVN tokenomics or final coin/logo design must NOT be altered.
+
+
+## 2026-10-15 additional ZK V2 safety coverage (prelaunch only)
+
+The real FRAME 22-felt leaf preflight previously accepted any nonnegative fee
+because it only checked `output1 + output2 <= input`. This source fix adds
+an explicit exact integer equality:
+
+`output1 + output2 + floor(input_base_units * VolumeFeeRateBps / 10000) == input_base_units`.
+
+The rate is checked as at most 10,000 bps, and all multiplication and
+addition use bounded u128 values. Real pinned FRAME pallet tests exercise
+exact fee, +1-base-unit rounding, forged zero-fee payout, underpaid fee,
+overcharged fee and a 12-decimal V1 unit-confusion attempt. The validation
+is still READ-ONLY; it cannot transfer funds or bypass proof verification.
+
+The 22-public-felt Plonky2 leaf now also tests a more sophisticated forged
+historical header: an attacker chooses a bogus Merkle root **and recomputes a
+matching public block hash**. The proof must reject it because the genuine
+leaf/path computed root is constrained equal to the header committed root.
+This is a test of the existing correct root equality, **not a newly activated
+chain verifier**. Its security still requires binding the public block hash
+to the real finalized chain and validating real prover/recursive keys.
+
+Both improvements remain proof/preflight development safety tests, not
+production V2 settlement, signed wallet transactions, or independent mainnet.

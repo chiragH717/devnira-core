@@ -222,7 +222,13 @@ mod devnira_v2_22pi_authenticated_spend_tests {
         let parent=Poseidon2Hash::hash_no_pad(&[f(1)]);
         let state=Poseidon2Hash::hash_no_pad(&[f(2)]);
         let extrinsics=Poseidon2Hash::hash_no_pad(&[f(3)]);
-        let bh=make_block(root,f(7),parent,state,extrinsics);
+        // Critical adversary: forge a DIFFERENT root and recompute the
+        // corresponding canonical public header hash coherently. Such a
+        // witness must still fail, because the Merkle-computed root is
+        // constrained equal to the header's committed root.
+        let forged_root=HashOut{elements:[f(55);4]};
+        let claimed_root=if fault=="coherent_root"{forged_root}else{root};
+        let bh=make_block(claimed_root,f(7),parent,state,extrinsics);
         let mut values=[F::ZERO;FELTS];
         values[0]=F::ZERO;
         values[1]=f(if fault=="inflation"{300_000_002}else{300_000_001});
@@ -258,7 +264,7 @@ mod devnira_v2_22pi_authenticated_spend_tests {
                 HashOut{elements:[f(5);4]}
             }else{siblings[i]}).unwrap();
         }
-        w.set_hash_target(t.committed_root,if fault=="root"{
+        w.set_hash_target(t.committed_root,if fault=="root"||fault=="coherent_root"{
             HashOut{elements:[f(55);4]}
         }else{root}).unwrap();
         w.set_hash_target(t.parent,parent).unwrap();
@@ -299,7 +305,7 @@ mod devnira_v2_22pi_authenticated_spend_tests {
         use std::panic::{catch_unwind,AssertUnwindSafe};
         let (data,t)=build();
         for attack in ["inflation","bps","height","input","nullifier","block",
-                       "account","secret","path","root","bad_fee","bad_remainder"]{
+                       "account","secret","path","root","coherent_root","bad_fee","bad_remainder"]{
             let pw=witness(&t,attack);
             let r=catch_unwind(AssertUnwindSafe(||data.prove(pw)));
             assert!(r.is_err()||r.unwrap().is_err(),
