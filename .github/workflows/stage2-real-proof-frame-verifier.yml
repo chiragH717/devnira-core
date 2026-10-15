@@ -5,6 +5,8 @@ on:
       - scripts/patch_zk_v2_authenticated_recursive_22pi.py
       - scripts/patch_zk_v2_frame_crypto_proof_bytes.py
       - tests/test_zk_v2_frame_crypto_proof_bytes.py
+      - tests/test_zk_v2_atomic_escrow_test_only.py
+      - scripts/patch_zk_v2_atomic_escrow_test_only.py
       - .github/workflows/stage2-real-proof-frame-verifier.yml
       - config/upstream-pins.json
   push:
@@ -27,6 +29,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m unittest discover -s tests -p 'test_zk_v2_frame_crypto_proof_bytes.py' -v
+          python3 -m unittest discover -s tests -p 'test_zk_v2_atomic_escrow_test_only.py' -v
           python3 -m unittest discover -s tests -p 'test_zk_v2_authenticated_recursive_22pi.py' -v
       - name: Fetch exact immutable V2 Plonky2 circuit source
         run: |
@@ -109,6 +112,7 @@ jobs:
           python3 scripts/patch_zk_v2_onchain_batch_admission.py upstream
           python3 scripts/patch_zk_v2_real_proof_frame_bridge.py upstream
           python3 scripts/patch_zk_v2_frame_crypto_proof_bytes.py upstream
+          python3 scripts/patch_zk_v2_atomic_escrow_test_only.py upstream
           git -C upstream diff --stat
       - name: Install exact Rust toolchain + native/WASM compiler dependencies
         run: |
@@ -124,6 +128,12 @@ jobs:
           set -euo pipefail
           export DEVNIRA_REAL_V2_PROOF_ARTIFACT_DIR="$GITHUB_WORKSPACE/v2-real-proof-output"
           cargo +1.93.0 test --locked -p pallet-wormhole --lib dvn_v2_realproof_frame_ -- --nocapture
+      - name: Real verified 24PI and 46PI FRAME escrow payout, exact fees, persistent nullifiers and rollback
+        working-directory: upstream
+        run: |
+          set -euo pipefail
+          export DEVNIRA_REAL_V2_PROOF_ARTIFACT_DIR="$GITHUB_WORKSPACE/v2-real-proof-output"
+          cargo +1.93.0 test --locked -p pallet-wormhole --lib dvn_v2_crypto_ -- --nocapture
       - name: Same audited-pins native plus embedded WASM 8-decimal inert node build
         working-directory: upstream
         run: cargo +1.93.0 build --locked --release -p quantus-node
@@ -149,4 +159,5 @@ jobs:
       - name: Record remaining production blockers
         run: |
           echo 'Test-only FRAME qp-plonky2 verifier cryptographically checks SAME pinned real 24PI/46PI recursive proof bytes, canonical encoding, adversarial corruption, common finalized-history mock and replay storage. Native/WASM development node builds.' >> "$GITHUB_STEP_SUMMARY"
-          echo 'NOT ACTIVATED: production approved VK, production private/public V2 batch ABI, real historical state-root finality on independent chain, atomic settlement and 8-decimal signed Send. NO MAINNET.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Test-only escrow settlement additionally executes real proof verification BEFORE atomic payout, exact fee and nullifier writes; replay/failed payout roll back, total issuance remains fixed.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'NOT ACTIVATED: production approved VK, final-state-root validation, true deposit-backed settlement, signed 8-decimal Send, independent genesis, NVIDIA/AMD miners. The escrow method is cfg(test) and absent from runtime/WASM. NO MAINNET.' >> "$GITHUB_STEP_SUMMARY"
