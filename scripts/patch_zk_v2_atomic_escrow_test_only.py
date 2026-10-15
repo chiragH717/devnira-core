@@ -46,10 +46,17 @@ RUST = r'''
 			ensure!(leaves == 1 || leaves == 2, Error::<T>::InvalidProofPublicInputs);
 			ensure!(!proof_bytes.is_empty() && proof_bytes.len() <= crate::MAX_PROOF_BYTES,
 				Error::<T>::ProofTooLarge);
-			let expected_pi = 22usize.checked_mul(leaves).and_then(|n| n.checked_add(2))
-				.ok_or(Error::<T>::InvalidProofPublicInputs)?;
-			ensure!(verifier.circuit_data.common.num_public_inputs == expected_pi,
-				Error::<T>::InvalidProofPublicInputs);
+			// Accepted DEVELOPMENT proof shapes:
+			// private leaf wrapper = 24 (22+2)
+			// legacy 2-leaf recursion = 46 (2*22+2)
+			// public-of-private 2-level aggregate = 50 (2*24+2)
+			// All versions are still test-only, not authorized runtime ABI.
+			let expected_pi = verifier.circuit_data.common.num_public_inputs;
+			ensure!(match leaves {
+				1 => expected_pi == 24,
+				2 => expected_pi == 46 || expected_pi == 50,
+				_ => false,
+			}, Error::<T>::InvalidProofPublicInputs);
 			let proof = ProofWithPublicInputs::<F, C, D>::from_bytes(
 				proof_bytes.to_vec(), &verifier.circuit_data.common,
 			).map_err(|_| Error::<T>::ProofDeserializationFailed)?;
@@ -64,16 +71,31 @@ RUST = r'''
 				|v| v.to_canonical_u64()
 			).collect();
 			ensure!(pis.len() == expected_pi, Error::<T>::InvalidProofPublicInputs);
-			let batch: Vec<&[u64]> = pis[..22*leaves].chunks_exact(22).collect();
+			let nested_private = leaves == 2 && expected_pi == 50;
+			let batch: Vec<&[u64]> = if nested_private {
+				vec![&pis[0..22],&pis[24..46]]
+			} else {
+				pis[..22*leaves].chunks_exact(22).collect()
+			};
+			let public_totals_start=expected_pi-2;
 			let mut summed_outputs = 0u128;
 			let mut summed_fees = 0u128;
 			let mut summed_inputs = 0u128;
-			for row in &batch {
+			for (i,row) in batch.iter().enumerate() {
 				let p1 = row[1] as u128;
 				let p2 = row[2] as u128;
 				let input = row[21] as u128;
 				let output = p1.checked_add(p2)
 					.ok_or(Error::<T>::InvalidProofPublicInputs)?;
+				let fee=input.checked_sub(output)
+					.ok_or(Error::<T>::InvalidProofPublicInputs)?;
+				if nested_private {
+					// Public wrapper must also account for EVERY private
+					// segment's independently authenticated private totals.
+					ensure!(pis[i*24+22] as u128 == output &&
+						pis[i*24+23] as u128 == fee,
+						Error::<T>::InvalidProofPublicInputs);
+				}
 				summed_outputs = summed_outputs.checked_add(output)
 					.ok_or(Error::<T>::InvalidProofPublicInputs)?;
 				summed_fees = summed_fees.checked_add(input.checked_sub(output)
@@ -84,9 +106,9 @@ RUST = r'''
 			}
 			// Never let untrusted caller-supplied totals or replayed leaves
 			// authorize a different output/fee conservation equation.
-			ensure!(pis[22*leaves] as u128 == summed_outputs,
+			ensure!(pis[public_totals_start] as u128 == summed_outputs,
 				Error::<T>::InvalidProofPublicInputs);
-			ensure!(pis[22*leaves+1] as u128 == summed_fees,
+			ensure!(pis[public_totals_start+1] as u128 == summed_fees,
 				Error::<T>::InvalidProofPublicInputs);
 			ensure!(summed_outputs.checked_add(summed_fees) == Some(summed_inputs),
 				Error::<T>::InvalidProofPublicInputs);
