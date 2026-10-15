@@ -166,7 +166,8 @@ mod devnira_v2_merkle_nullifier_tests {
         let nullifier=Poseidon2Hash::hash_no_pad(&npi);
         (root,siblings.try_into().unwrap(),position as u64,chain_hash,nullifier)
     }
-    fn fill(t:&Targets)->PartialWitness<F>{
+    fn fill(t:&Targets)->PartialWitness<F>{fill_modified(t,"")}
+    fn fill_modified(t:&Targets,fault:&str)->PartialWitness<F>{
         let (root,siblings,position,chain_hash,nullifier)=example_fixture();
         let mut pw=PartialWitness::new();
         for (idx,target) in t.account.iter().enumerate(){
@@ -176,16 +177,16 @@ mod devnira_v2_merkle_nullifier_tests {
         pw.set_target(t.count[1],f(1)).unwrap();
         pw.set_target(t.asset,f(0)).unwrap();
         pw.set_target(t.input,f(500_000_000)).unwrap();
-        pw.set_target(t.out1,f(300_000_001)).unwrap();
+        pw.set_target(t.out1,if fault=="inflation" {f(300_000_002)} else {f(300_000_001)}).unwrap();
         pw.set_target(t.out2,f(199_999_998)).unwrap();
         pw.set_target(t.fee,f(1)).unwrap();
         pw.set_target(t.position,f(position)).unwrap();
         for (i,sibling) in siblings.iter().enumerate(){
-            pw.set_hash_target(t.siblings[i],*sibling).unwrap();
+            pw.set_hash_target(t.siblings[i],if fault=="sibling" && i==0 {HashOut{elements:[f(5);4]}} else {*sibling}).unwrap();
         }
-        pw.set_hash_target(t.root,root).unwrap();
-        pw.set_hash_target(t.chain_hash,chain_hash).unwrap();
-        pw.set_hash_target(t.nullifier,nullifier).unwrap();
+        pw.set_hash_target(t.root,if fault=="root" {HashOut{elements:[f(9),f(8),f(7),f(6)]}} else {root}).unwrap();
+        pw.set_hash_target(t.chain_hash,if fault=="network" {HashOut{elements:[f(15);4]}} else if fault=="zero_network" {HashOut{elements:[f(0);4]}} else {chain_hash}).unwrap();
+        pw.set_hash_target(t.nullifier,if fault=="nullifier" {HashOut{elements:[f(4);4]}} else {nullifier}).unwrap();
         pw
     }
     #[test]
@@ -206,16 +207,13 @@ mod devnira_v2_merkle_nullifier_tests {
     fn dvn_v2_merkle_rejects_forged_root_sibling_and_nullifier() {
         use std::panic::{catch_unwind,AssertUnwindSafe};
         let (data,t)=build();
-        let mut wrong_root=fill(&t);
-        wrong_root.set_hash_target(t.root,HashOut{elements:[f(9),f(8),f(7),f(6)]}).unwrap();
+        let wrong_root=fill_modified(&t,"root");
         let out=catch_unwind(AssertUnwindSafe(||data.prove(wrong_root)));
         assert!(out.is_err()||out.unwrap().is_err(),"forged Merkle root proved");
-        let mut wrong_sibling=fill(&t);
-        wrong_sibling.set_hash_target(t.siblings[0],HashOut{elements:[f(5);4]}).unwrap();
+        let wrong_sibling=fill_modified(&t,"sibling");
         let out=catch_unwind(AssertUnwindSafe(||data.prove(wrong_sibling)));
         assert!(out.is_err()||out.unwrap().is_err(),"forged sibling proved");
-        let mut wrong_nullifier=fill(&t);
-        wrong_nullifier.set_hash_target(t.nullifier,HashOut{elements:[f(4);4]}).unwrap();
+        let wrong_nullifier=fill_modified(&t,"nullifier");
         let out=catch_unwind(AssertUnwindSafe(||data.prove(wrong_nullifier)));
         assert!(out.is_err()||out.unwrap().is_err(),"forged nullifier proved");
     }
@@ -224,17 +222,14 @@ mod devnira_v2_merkle_nullifier_tests {
     fn dvn_v2_merkle_rejects_foreign_network_zero_and_reused_nullifier() {
         use std::panic::{catch_unwind,AssertUnwindSafe};
         let (data,t)=build();
-        let mut changed_network=fill(&t);
-        changed_network.set_hash_target(t.chain_hash,HashOut{elements:[f(15);4]}).unwrap();
+        let changed_network=fill_modified(&t,"network");
         let out=catch_unwind(AssertUnwindSafe(||data.prove(changed_network)));
         assert!(out.is_err()||out.unwrap().is_err(),
             "old nullifier must not authenticate under different network tag");
-        let mut zero_network=fill(&t);
-        zero_network.set_hash_target(t.chain_hash,HashOut{elements:[f(0);4]}).unwrap();
+        let zero_network=fill_modified(&t,"zero_network");
         let out=catch_unwind(AssertUnwindSafe(||data.prove(zero_network)));
         assert!(out.is_err()||out.unwrap().is_err(),"zero-genesis network must fail");
-        let mut attempted_inflation=fill(&t);
-        attempted_inflation.set_target(t.out1,f(300_000_002)).unwrap();
+        let attempted_inflation=fill_modified(&t,"inflation");
         let out=catch_unwind(AssertUnwindSafe(||data.prove(attempted_inflation)));
         assert!(out.is_err()||out.unwrap().is_err(),"unauthorized extra DVN unit must fail");
     }
