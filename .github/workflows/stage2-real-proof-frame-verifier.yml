@@ -1,4 +1,4 @@
-name: DEVNIRA Stage2 genuine recursive proof bytes to FRAME verifier + WASM (NO SETTLEMENT)
+name: DEVNIRA Stage2 PRIVATE/PUBLIC fixed VK + real proof-to-atomic FRAME escrow (TEST ONLY)
 on:
   pull_request:
     paths:
@@ -7,6 +7,10 @@ on:
       - tests/test_zk_v2_frame_crypto_proof_bytes.py
       - tests/test_zk_v2_atomic_escrow_test_only.py
       - scripts/patch_zk_v2_atomic_escrow_test_only.py
+      - scripts/patch_zk_v2_private_public_fixed_vk.py
+      - scripts/patch_zk_v2_private_public_frame_integration.py
+      - tests/test_zk_v2_private_public_two_tier.py
+      - config/dvn-v2-private-public-vk-candidate.json
       - .github/workflows/stage2-real-proof-frame-verifier.yml
       - config/upstream-pins.json
   push:
@@ -15,6 +19,12 @@ on:
       - scripts/patch_zk_v2_authenticated_recursive_22pi.py
       - scripts/patch_zk_v2_frame_crypto_proof_bytes.py
       - tests/test_zk_v2_frame_crypto_proof_bytes.py
+      - scripts/patch_zk_v2_atomic_escrow_test_only.py
+      - tests/test_zk_v2_atomic_escrow_test_only.py
+      - scripts/patch_zk_v2_private_public_fixed_vk.py
+      - scripts/patch_zk_v2_private_public_frame_integration.py
+      - tests/test_zk_v2_private_public_two_tier.py
+      - config/dvn-v2-private-public-vk-candidate.json
       - .github/workflows/stage2-real-proof-frame-verifier.yml
   workflow_dispatch:
 permissions:
@@ -30,6 +40,16 @@ jobs:
           set -euo pipefail
           python3 -m unittest discover -s tests -p 'test_zk_v2_frame_crypto_proof_bytes.py' -v
           python3 -m unittest discover -s tests -p 'test_zk_v2_atomic_escrow_test_only.py' -v
+          python3 -m unittest discover -s tests -p 'test_zk_v2_private_public_two_tier.py' -v
+          python3 - <<'PY'
+          import json
+          c=json.load(open('config/dvn-v2-private-public-vk-candidate.json'))
+          assert [c['hierarchy'][i]['public_inputs'] for i in range(3)]==[22,24,50]
+          assert c['candidate_vk_sha256'] is None
+          assert not c['production_vk_approved'] and not c['production_runtime_active']
+          assert not c['release_allowed']
+          print('FAIL-CLOSED: V2 private/public development VKs are NOT approved production keys')
+          PY
           python3 -m unittest discover -s tests -p 'test_zk_v2_authenticated_recursive_22pi.py' -v
       - name: Fetch exact immutable V2 Plonky2 circuit source
         run: |
@@ -48,6 +68,7 @@ jobs:
           python3 scripts/patch_zk_v2_multilevel_authentic_22pi.py zk-circuits
           python3 scripts/patch_zk_v2_authenticated_full_depth_16.py zk-circuits
           python3 scripts/patch_zk_v2_authenticated_recursive_22pi.py zk-circuits
+          python3 scripts/patch_zk_v2_private_public_fixed_vk.py zk-circuits
       - name: Locked native Rust real proof proving + serialized artifacts
         working-directory: zk-circuits
         run: |
@@ -55,11 +76,14 @@ jobs:
           rustup toolchain install 1.93.0 --profile minimal
           export DEVNIRA_TEST_ARTIFACT_DIR="$PWD/v2-real-proof-output"
           cargo +1.93.0 test --locked -p qp-wormhole-circuit --lib dvn_v2_recursive22_ -- --nocapture
-          for item in authenticated-22pi-recursive-proof.bin authenticated-22pi-recursive-vk.bin authenticated-22pi-recursive-common.bin authenticated-22pi-two-leaf-proof.bin authenticated-22pi-two-leaf-vk.bin authenticated-22pi-two-leaf-common.bin; do
+          cargo +1.93.0 test --locked -p qp-wormhole-circuit --lib dvn_v2_private_public_aggregator_ -- --nocapture
+          for item in authenticated-22pi-recursive-proof.bin authenticated-22pi-recursive-vk.bin authenticated-22pi-recursive-common.bin authenticated-22pi-two-leaf-proof.bin authenticated-22pi-two-leaf-vk.bin authenticated-22pi-two-leaf-common.bin private-v2-24pi-proof.bin private-v2-24pi-other-proof.bin private-v2-24pi-vk.bin private-v2-24pi-common.bin public-v2-50pi-proof.bin public-v2-50pi-vk.bin public-v2-50pi-common.bin; do
             test -s "v2-real-proof-output/$item"
           done
           (cd v2-real-proof-output && sha256sum *.bin) > v2-real-proof-output/SHA256SUMS.txt
           (cd v2-real-proof-output && sha256sum -c SHA256SUMS.txt)
+          echo 'V2 candidate PRIVATE and PUBLIC VK SHA256 (not approved):'
+          sha256sum v2-real-proof-output/{private-v2-24pi-vk.bin,private-v2-24pi-common.bin,public-v2-50pi-vk.bin,public-v2-50pi-common.bin}
       - name: Upload only real test-generated serialized proofs and public development VK
         uses: actions/upload-artifact@v4
         with:
@@ -113,6 +137,7 @@ jobs:
           python3 scripts/patch_zk_v2_real_proof_frame_bridge.py upstream
           python3 scripts/patch_zk_v2_frame_crypto_proof_bytes.py upstream
           python3 scripts/patch_zk_v2_atomic_escrow_test_only.py upstream
+          python3 scripts/patch_zk_v2_private_public_frame_integration.py upstream
           git -C upstream diff --stat
       - name: Install exact Rust toolchain + native/WASM compiler dependencies
         run: |
@@ -134,6 +159,12 @@ jobs:
           set -euo pipefail
           export DEVNIRA_REAL_V2_PROOF_ARTIFACT_DIR="$GITHUB_WORKSPACE/v2-real-proof-output"
           cargo +1.93.0 test --locked -p pallet-wormhole --lib dvn_v2_crypto_ -- --nocapture
+      - name: Real 24PI PRIVATE and 50PI PUBLIC proof bytes verified and atomically settled against FRAME mock-state escrow
+        working-directory: upstream
+        run: |
+          set -euo pipefail
+          export DEVNIRA_REAL_V2_PROOF_ARTIFACT_DIR="$GITHUB_WORKSPACE/v2-real-proof-output"
+          cargo +1.93.0 test --locked -p pallet-wormhole --lib dvn_v2_private_public_ -- --nocapture
       - name: Same audited-pins native plus embedded WASM 8-decimal inert node build
         working-directory: upstream
         run: cargo +1.93.0 build --locked --release -p quantus-node
@@ -160,4 +191,5 @@ jobs:
         run: |
           echo 'Test-only FRAME qp-plonky2 verifier cryptographically checks SAME pinned real 24PI/46PI recursive proof bytes, canonical encoding, adversarial corruption, common finalized-history mock and replay storage. Native/WASM development node builds.' >> "$GITHUB_STEP_SUMMARY"
           echo 'Test-only escrow settlement additionally executes real proof verification BEFORE atomic payout, exact fee and nullifier writes; replay/failed payout roll back, total issuance remains fixed.' >> "$GITHUB_STEP_SUMMARY"
-          echo 'NOT ACTIVATED: production approved VK, final-state-root validation, true deposit-backed settlement, signed 8-decimal Send, independent genesis, NVIDIA/AMD miners. The escrow method is cfg(test) and absent from runtime/WASM. NO MAINNET.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'PRIVATE 24PI + PUBLIC 50PI recursive proofs are actual pinned native proofs with fixed inner/private VKs; runtime compatibility and atomic prefunded escrow are TEST-ONLY.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'NOT ACTIVATED: approved production VK, finalized independent DEVNIRA header root, genuine deposit-backed custody, V2 signed Send, genesis and physical GPU mining. All atomic escrow code remains cfg(test), excluded from native/WASM runtime. NO MAINNET.' >> "$GITHUB_STEP_SUMMARY"
