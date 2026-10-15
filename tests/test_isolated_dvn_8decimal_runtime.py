@@ -71,7 +71,7 @@ class ResearchOnlyDvnEightDecimalTests(unittest.TestCase):
 
     def test_rejects_missing_v1_proof_regime(self):
         (self.root/"pallets/wormhole/src/lib.rs").write_text("new real V2 proof")
-        with self.assertRaisesRegex(ValueError,"proof path"):
+        with self.assertRaisesRegex(ValueError,"withdrawal amount scale changed"):
             patch(self.root)
 
 if __name__=="__main__":
