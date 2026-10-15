@@ -75,8 +75,10 @@ jobs:
           set -euo pipefail
           rustup toolchain install 1.93.0 --profile minimal
           export DEVNIRA_TEST_ARTIFACT_DIR="$PWD/v2-real-proof-output"
-          cargo +1.93.0 test --locked -p qp-wormhole-circuit --lib dvn_v2_recursive22_ -- --nocapture
+          # Fail fast on the NEW production-critical nested PRIVATE/PUBLIC
+          # recursion before spending several minutes re-proving old leaf tests.
           cargo +1.93.0 test --locked -p qp-wormhole-circuit --lib dvn_v2_private_public_aggregator_ -- --nocapture
+          cargo +1.93.0 test --locked -p qp-wormhole-circuit --lib dvn_v2_recursive22_ -- --nocapture
           for item in authenticated-22pi-recursive-proof.bin authenticated-22pi-recursive-vk.bin authenticated-22pi-recursive-common.bin authenticated-22pi-two-leaf-proof.bin authenticated-22pi-two-leaf-vk.bin authenticated-22pi-two-leaf-common.bin private-v2-24pi-proof.bin private-v2-24pi-other-proof.bin private-v2-24pi-vk.bin private-v2-24pi-common.bin public-v2-50pi-proof.bin public-v2-50pi-vk.bin public-v2-50pi-common.bin; do
             test -s "v2-real-proof-output/$item"
           done
