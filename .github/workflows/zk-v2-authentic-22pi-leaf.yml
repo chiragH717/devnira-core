@@ -1,0 +1,51 @@
+name: DEVNIRA real 22PI owner + nullifier + Merkle + block-header proof (NOT ON-CHAIN)
+on:
+  pull_request:
+    paths:
+      - scripts/patch_zk_v2_authentic_22pi_leaf.py
+      - tests/test_zk_v2_authentic_22pi_leaf.py
+      - .github/workflows/zk-v2-authentic-22pi-leaf.yml
+      - docs/ZK_V2_AUTHENTICATED_LEAF_PROGRESS.md
+      - config/upstream-pins.json
+  push:
+    branches: [main]
+    paths:
+      - scripts/patch_zk_v2_authentic_22pi_leaf.py
+      - tests/test_zk_v2_authentic_22pi_leaf.py
+      - .github/workflows/zk-v2-authentic-22pi-leaf.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  real-composed-22pi-plonky2-leaf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Python exact-pinned fail-closed tests
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_zk_v2_authentic_22pi_leaf.py' -v
+          python3 -m py_compile scripts/patch_zk_v2_authentic_22pi_leaf.py
+      - name: Check out exact approved Plonky2 reference source
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/Quantus-Network/qp-zk-circuits.git zk-circuits
+          PIN=$(python3 -c 'import json;print(json.load(open("config/upstream-pins.json"))["zk_circuits"]["sha"])')
+          git -C zk-circuits fetch --depth 1 origin "$PIN"
+          git -C zk-circuits checkout --detach "$PIN"
+          test "$(git -C zk-circuits rev-parse HEAD)" = "$PIN"
+      - name: Stage real u64 leaf amount, ownership, Merkle and header proof
+        run: |
+          set -euo pipefail
+          python3 scripts/patch_zk_leaf_amount_v2.py zk-circuits
+          python3 scripts/patch_zk_native_conservation.py zk-circuits
+          python3 scripts/patch_zk_v2_authentic_22pi_leaf.py zk-circuits
+      - name: Install pinned Rust
+        run: rustup toolchain install 1.93.0 --profile minimal
+      - name: Actually prove and verify single-leaf 22PI owner, nullifier, Merkle root and historical block-hash circuit
+        working-directory: zk-circuits
+        run: cargo +1.93.0 test --locked -p qp-wormhole-circuit --lib dvn_v2_full_leaf_22pi_ -- --nocapture
+      - name: Report strict scope of evidence
+        run: |
+          echo 'PASS: test-only single-level 22PI owner + nullifier + 4-ary Merkle + full header commitments and exact native amount as ONE Plonky2 proof. NOT integrated batch recursion, real pinned historical block, on-chain active VK, production fee policy, irreversible nullifier settlement or mainnet.' >> "$GITHUB_STEP_SUMMARY"
