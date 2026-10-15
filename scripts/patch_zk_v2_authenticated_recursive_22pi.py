@@ -49,7 +49,8 @@ RUST_TESTS = r'''
             total_payout=b.add(total_payout,exits);
             // Fee is constrained INSIDE the authenticated inner leaf:
             // input = output1 + output2 + exact fixed 4-bps fee.
-            total_fee=b.add(total_fee,b.sub(pi[21],exits));
+            let fee=b.sub(pi[21],exits);
+            total_fee=b.add(total_fee,fee);
         }
         // Two leaves are <= 2e16 before any addition, below Goldilocks p.
         // Disallow a single recursive batch over the 100M DVN cap.
