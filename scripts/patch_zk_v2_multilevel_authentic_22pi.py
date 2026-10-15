@@ -133,9 +133,10 @@ def patch(root: Path):
                 }else{siblings[level][slot]}).unwrap();
             }
         }""")
-    text=one(text,
-        "        let (data,t)=build();",
-        "        let (data,t)=build(2);")
+    if text.count("        let (data,t)=build();")!=2:
+        raise ValueError("STOP: two authentic proof tests not found")
+    text=text.replace("        let (data,t)=build();",
+                      "        let (data,t)=build(2);")
     text=one(text,
         '                       "account","secret","path","root","bad_fee","bad_remainder"]',
         '                       "account","secret","path","position","root","bad_fee","bad_remainder"]')
