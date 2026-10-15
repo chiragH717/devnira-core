@@ -4,12 +4,18 @@ on:
     paths:
       - scripts/verify_combined_stage2_runtime.py
       - tests/test_verify_combined_stage2_runtime.py
+      - scripts/dvn_two_native_processes.py
+      - tests/test_dvn_two_native_processes.py
+      - docs/TWO_NATIVE_DEV_NODES.md
       - .github/workflows/stage2-unified-8decimal-economics-v2.yml
   push:
     branches: [main]
     paths:
       - scripts/verify_combined_stage2_runtime.py
       - tests/test_verify_combined_stage2_runtime.py
+      - scripts/dvn_two_native_processes.py
+      - tests/test_dvn_two_native_processes.py
+      - docs/TWO_NATIVE_DEV_NODES.md
       - .github/workflows/stage2-unified-8decimal-economics-v2.yml
   workflow_dispatch:
 permissions:
@@ -87,12 +93,18 @@ jobs:
           print("PASS: all staged modules compiled into one INERT native/WASM source")
           PY
           python3 scripts/check_native_windows_cli.py upstream/target/release/quantus-node
+      - name: Two REAL native 8-decimal nodes establish local P2P and shared genesis
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_dvn_two_native_processes.py' -v
+          python3 scripts/dvn_two_native_processes.py --node upstream/target/release/quantus-node --timeout 180 --json dvn-two-real-native-p2p-NO-GPU.json
       - name: Publish JSON and source provenance only (NO unsafe production binary)
         uses: actions/upload-artifact@v4
         with:
           name: DEVNIRA-COMBINED-8DEC-90M-7M-V2-PREFLIGHT-NO-SEND-NOT-MAINNET
           path: |
             devnira-unified-no-send-audit.json
+            dvn-two-real-native-p2p-NO-GPU.json
             devnira-unified-local-dev-only-spec.json
           if-no-files-found: error
       - name: Immutable actual status
