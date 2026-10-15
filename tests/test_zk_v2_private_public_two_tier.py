@@ -29,6 +29,9 @@ class V2PrivatePublicSourceTests(unittest.TestCase):
         s=self.native.read_text()
         for invariant in (
             PM,
+            "fn dvn_v2_private_single_leaf_fixed_vk(",
+            "let (private, leaf_targets)=dvn_v2_private_single_leaf_fixed_vk(&inner)",
+            "b.verify_proof::<C>(&p,&vk,&inner.common)",
             "b.constant_verifier_data::<C>(&private.verifier_only)",
             "b.verify_proof::<C>(&p,&fixed_private_vk,&private.common)",
             "b.assert_zero(all_nullifiers_equal)",
