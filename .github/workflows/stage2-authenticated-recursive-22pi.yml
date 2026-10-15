@@ -141,10 +141,11 @@ jobs:
           echo "LIBCLANG_PATH=$(llvm-config --libdir)" >> "$GITHUB_ENV"
       - name: Actual FRAME test consumes cryptographically proven 22PI against history and nullifiers
         working-directory: upstream
-        env:
-          DEVNIRA_REAL_PROOF_PIS_TXT: ../proven-zk-fixtures/authenticated-22pi-real-leaf-pis.txt
         run: |
           set -euo pipefail
+          # Cargo sets the test binary cwd to pallets/wormhole, not upstream.
+          export DEVNIRA_REAL_PROOF_PIS_TXT="$GITHUB_WORKSPACE/proven-zk-fixtures/authenticated-22pi-real-leaf-pis.txt"
+          test -s "$DEVNIRA_REAL_PROOF_PIS_TXT"
           cargo +1.93.0 test --locked -p pallet-wormhole --lib dvn_real_recursive_proof_abi_ -- --nocapture
       - name: Compile same inert 8-decimal DEVNIRA node and embedded WASM
         working-directory: upstream
