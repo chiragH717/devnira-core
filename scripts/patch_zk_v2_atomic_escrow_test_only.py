@@ -36,7 +36,7 @@ RUST = r'''
 			leaves: usize,
 			escrow: &<T as frame_system::Config>::AccountId,
 			fee_receiver: &<T as frame_system::Config>::AccountId,
-		) -> Result<(), frame_support::dispatch::DispatchError> {
+		) -> Result<(), sp_runtime::DispatchError> {
 			use qp_plonky2_verifier::field::types::PrimeField64;
 			use frame_support::{
 				storage::{with_transaction, TransactionOutcome},
@@ -97,7 +97,7 @@ RUST = r'''
 			// All storage writes (including FRAME Balance events and each
 			// nullifier) commit as one unit or fully roll back on any error.
 			with_transaction(|| {
-				let settle = (|| -> Result<(), frame_support::dispatch::DispatchError> {
+				let settle = (|| -> Result<(), sp_runtime::DispatchError> {
 					Self::devnira_v2_batch_chain_preflight(&batch)?;
 					for row in &batch {
 						let mut spent = [0u8;32];
@@ -167,7 +167,7 @@ mod devnira_v2_real_crypto_atomic_escrow_tests {
 		let vk=VerifierOnlyCircuitData::from_bytes(
 			std::fs::read(root.join(format!("{name}-vk.bin"))).unwrap()).unwrap();
 		let common=CommonCircuitData::from_bytes(
-			std::fs::read(root.join(format!("{name}-common.bin")).unwrap()),
+			std::fs::read(root.join(format!("{name}-common.bin"))).unwrap(),
 			&DefaultGateSerializer).unwrap();
 		let verifier=WormholeVerifier {
 			circuit_data:VerifierCircuitData{verifier_only:vk,common},
