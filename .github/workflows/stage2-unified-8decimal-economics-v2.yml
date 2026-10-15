@@ -1,0 +1,100 @@
+name: DEVNIRA single native/WASM 8-decimal + 90M mining + 7M vesting + V2 preflight (NO SEND)
+on:
+  pull_request:
+    paths:
+      - scripts/verify_combined_stage2_runtime.py
+      - tests/test_verify_combined_stage2_runtime.py
+      - .github/workflows/stage2-unified-8decimal-economics-v2.yml
+  push:
+    branches: [main]
+    paths:
+      - scripts/verify_combined_stage2_runtime.py
+      - tests/test_verify_combined_stage2_runtime.py
+      - .github/workflows/stage2-unified-8decimal-economics-v2.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  unified-real-rust-native-and-wasm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unit-test fail-closed combined source contract
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_verify_combined_stage2_runtime.py' -v
+          python3 -m py_compile scripts/verify_combined_stage2_runtime.py
+      - name: Fetch exact pinned Quantus FRAME and V2 leaf public-input ABI
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/Quantus-Network/chain.git upstream
+          PIN=$(python3 -c 'import json;print(json.load(open("config/upstream-pins.json"))["upstream_chain"]["sha"])')
+          git -C upstream fetch --depth 1 origin "$PIN"
+          git -C upstream checkout --detach "$PIN"
+          test "$(git -C upstream rev-parse HEAD)" = "$PIN"
+          git clone --depth 1 https://github.com/Quantus-Network/qp-zk-circuits.git zk-circuits
+          ZPIN=$(python3 -c 'import json;print(json.load(open("config/upstream-pins.json"))["zk_circuits"]["sha"])')
+          git -C zk-circuits fetch --depth 1 origin "$ZPIN"
+          git -C zk-circuits checkout --detach "$ZPIN"
+          test "$(git -C zk-circuits rev-parse HEAD)" = "$ZPIN"
+      - name: Apply ALL four development-only security/economics components to ONE tree
+        run: |
+          set -euo pipefail
+          python3 scripts/guard_dvn_network_identity.py upstream
+          python3 scripts/patch_reward_runtime.py upstream
+          python3 scripts/test_reward_runtime.py upstream
+          python3 scripts/protect_genesis_vesting.py upstream
+          python3 scripts/patch_exact_genesis_vesting.py upstream
+          python3 scripts/test_exact_genesis_vesting.py upstream
+          python3 scripts/test_genesis_vesting_protection.py upstream
+          python3 scripts/test_onchain_vesting.py upstream
+          python3 scripts/patch_isolated_dvn_8decimal_runtime.py upstream
+          python3 scripts/patch_zk_v2_onchain_preflight.py upstream --circuit-source zk-circuits
+          python3 scripts/verify_combined_stage2_runtime.py upstream --json devnira-unified-no-send-audit.json
+          git -C upstream diff --stat
+      - name: Install pinned Rust and WASM runtime target
+        run: |
+          rustup toolchain install 1.93.0 --profile minimal
+          rustup target add wasm32v1-none --toolchain 1.93.0
+          sudo apt-get update
+          sudo apt-get install -y clang libclang-dev llvm-dev libssl-dev pkg-config protobuf-compiler libprotobuf-dev cmake build-essential
+          echo "LIBCLANG_PATH=$(llvm-config --libdir)" >> "$GITHUB_ENV"
+      - name: Real FRAME miner subsidy, 90M cap, quantized fee recycling
+        working-directory: upstream
+        run: cargo +1.93.0 test --locked -p pallet-mining-rewards --lib dvn_ -- --nocapture
+      - name: Real FRAME 12-month vesting, immutable grants and exact 7M pot
+        working-directory: upstream
+        run: cargo +1.93.0 test --locked -p pallet-vesting --lib dvn_ -- --nocapture
+      - name: Real FRAME historical block and anti-replay V2 22-PI read-only guard
+        working-directory: upstream
+        run: cargo +1.93.0 test --locked -p pallet-wormhole --lib dvn_v2_abi_ -- --nocapture
+      - name: Compile SAME integrated 8-decimal native release node with embedded WASM
+        working-directory: upstream
+        run: cargo +1.93.0 build --locked --release -p quantus-node
+      - name: Verify node is DEVNIRA inert research and refuses Quantus public networks
+        run: |
+          set -euo pipefail
+          upstream/target/release/quantus-node build-spec --chain dev --disable-default-bootnode > devnira-unified-local-dev-only-spec.json
+          python3 - <<'PY'
+          import json
+          spec=json.load(open("devnira-unified-local-dev-only-spec.json"))
+          assert spec["name"] == "DEVNIRA isolated 8-decimal research / NO SEND"
+          assert spec["id"] == "devnira-8dec-inert-dev"
+          assert spec["properties"]["tokenDecimals"] == 8
+          assert spec["properties"]["tokenSymbol"] == "DVN"
+          assert spec["properties"]["ss58Format"] == 190
+          print("PASS: all staged modules compiled into one INERT native/WASM source")
+          PY
+          python3 scripts/check_native_windows_cli.py upstream/target/release/quantus-node
+      - name: Publish JSON and source provenance only (NO unsafe production binary)
+        uses: actions/upload-artifact@v4
+        with:
+          name: DEVNIRA-COMBINED-8DEC-90M-7M-V2-PREFLIGHT-NO-SEND-NOT-MAINNET
+          path: |
+            devnira-unified-no-send-audit.json
+            devnira-unified-local-dev-only-spec.json
+          if-no-files-found: error
+      - name: Immutable actual status
+        run: |
+          echo 'PASS covers ONE native/WASM research binary containing 8-decimal DVN, 90M subsidy accounting, immutable founder vesting, exact-pot mode source, and read-only V2 admission helper. This is NOT a spendable chain. Historical Quantus DEV genesis accounts remain; owner public Genesis, active V2 verifier, wallet Send, real GPUs and launch are BLOCKED.' >> "$GITHUB_STEP_SUMMARY"
