@@ -37,6 +37,8 @@ class AuthenticNativeDVNLeafPatchTests(unittest.TestCase):
             MARKER,"UnspendableAccount::constraints(",
             "Nullifier::conditional_hash_binding(",
             "BlockHeader::conditional_block_hash_binding(",
+            'fault=="coherent_root"',
+            '"coherent_root","bad_fee"',
             "let input_times_rate=b.mul(pi[21],expected_rate)",
             "enforce_target_less_than_const(&mut b,remainder,10_000,14)",
             "b.connect(computed_root.elements[i],committed_root.elements[i])",

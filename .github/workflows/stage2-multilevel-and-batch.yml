@@ -63,6 +63,7 @@ jobs:
       - name: Python batch/state invariants and source-drift tests
         run: |
           set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_zk_v2_onchain_preflight.py' -v
           python3 -m unittest discover -s tests -p 'test_zk_v2_onchain_batch_admission.py' -v
           python3 -m py_compile scripts/patch_zk_v2_onchain_batch_admission.py
       - name: Checkout exact pinned real FRAME and canonical 22-PI source
