@@ -54,13 +54,17 @@ RUST_TESTS = r'''
         }
         // Two leaves are <= 2e16 before any addition, below Goldilocks p.
         // Disallow a single recursive batch over the 100M DVN cap.
-        zk_circuits_common::gadgets::enforce_target_less_than_const(
-            &mut b,total_payout,DVN_NATIVE_MAX+1,54);
-        zk_circuits_common::gadgets::enforce_target_less_than_const(
-            &mut b,total_fee,DVN_NATIVE_MAX+1,54);
         let total=b.add(total_payout,total_fee);
-        zk_circuits_common::gadgets::enforce_target_less_than_const(
-            &mut b,total,DVN_NATIVE_MAX+1,54);
+        // Portable on wasm32 AND native: DVN cap does not fit usize on
+        // 32-bit targets. Both amount and (cap-amount) must be < 2^54.
+        // Since Goldilocks modulus > 2^54 + cap, negative differences
+        // wrap outside 54 bits and fail the circuit constraints.
+        let cap=b.constant(F::from_canonical_u64(DVN_NATIVE_MAX));
+        for value in [total_payout,total_fee,total] {
+            b.range_check(value,54);
+            let remaining=b.sub(cap,value);
+            b.range_check(remaining,54);
+        }
         b.register_public_input(total_payout);
         b.register_public_input(total_fee);
         (b.build::<C>(),proofs)
