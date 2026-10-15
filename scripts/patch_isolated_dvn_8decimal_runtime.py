@@ -117,8 +117,8 @@ def patch(root:Path)->None:
         raise ValueError("STOP: legacy Quantus 21M genesis economics changed")
     if legacy.count("const _: () = assert!(GENESIS_ALLOCATION == 5_670_000 * UNIT);")!=1:
         raise ValueError("STOP: old Quantus allocation assertions changed")
-    legacy=re.sub(r"\\bMAX_SUPPLY\\b","LEGACY_QTC_MAX_SUPPLY",legacy)
-    legacy=re.sub(r"\\bUNIT\\b","LEGACY_QTC_UNIT",legacy)
+    legacy=re.sub(r"\bMAX_SUPPLY\b","LEGACY_QTC_MAX_SUPPLY",legacy)
+    legacy=re.sub(r"\bUNIT\b","LEGACY_QTC_UNIT",legacy)
     legacy=legacy.replace("use crate::AccountId;",
         "use crate::AccountId;\n"
         "// INERT RESEARCH ONLY: isolated unreachable Quantus 12-decimal mainnet\n"
