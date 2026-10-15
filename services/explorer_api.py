@@ -11,12 +11,30 @@ import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 from services.network_rpc import ChainRejected, GuardedRpc, NodeIdentity, valid_hash
+from services.finalized_indexer import IndexRejected, index_status, lookup_block
 
 _BLOCK = re.compile(r"/api/block/([0-9]{1,20})\Z")
 _BY_HASH = re.compile(r"/api/hash/(0x[0-9a-fA-F]{64})\Z")
+_IDX_BLOCK = re.compile(r"/api/index/block/([0-9]{1,19})\Z")
+_IDX_HASH = re.compile(r"/api/index/hash/(0x[0-9a-fA-F]{64})\Z")
 
 
-def query(rpc, path):
+def query(rpc, path, indexed_db=None):
+    # Persistent indexer is opt-in and read-only. It is not a decoded explorer.
+    if path.startswith("/api/index/"):
+        if indexed_db is None:
+            return 404, {"error": "Finalized block database not configured"}
+        if path == "/api/index/status":
+            return 200, index_status(indexed_db)
+        by_height = _IDX_BLOCK.fullmatch(path)
+        by_hash = _IDX_HASH.fullmatch(path)
+        if by_height:
+            block = lookup_block(indexed_db, height=int(by_height[1]))
+            return (200, block) if block is not None else (404, {"error":"Finalized block not indexed"})
+        if by_hash:
+            block = lookup_block(indexed_db, block_hash=by_hash[1])
+            return (200, block) if block is not None else (404, {"error":"Finalized block not indexed"})
+        return 404, {"error": "Unknown indexed explorer endpoint"}
     if path == "/api/status":
         return 200, rpc.finalized_status()
     match = _BLOCK.fullmatch(path)
@@ -30,7 +48,7 @@ def query(rpc, path):
     return 404, {"error": "Unknown read-only explorer endpoint"}
 
 
-def handler_type(rpc):
+def handler_type(rpc, indexed_db=None):
     class ExplorerHandler(BaseHTTPRequestHandler):
         def do_GET(self):
             parsed = urlsplit(self.path)
@@ -38,8 +56,8 @@ def handler_type(rpc):
                 self._send(400, {"error": "Query strings are not supported"})
                 return
             try:
-                code, value = query(rpc, parsed.path)
-            except (ChainRejected, OSError, TimeoutError, ValueError):
+                code, value = query(rpc, parsed.path, indexed_db)
+            except (ChainRejected, IndexRejected, OSError, TimeoutError, ValueError):
                 code, value = 503, {"error": "Verified DEVNIRA RPC unavailable or incompatible"}
             self._send(code, value)
 
@@ -69,8 +87,10 @@ def main():
     port = int(os.environ.get("DVN_EXPLORER_PORT", "8777"))
     if not 1 <= port <= 65535:
         raise ValueError("Invalid explorer port")
-    # Loopback is deliberate, not a production web server.
-    server = ThreadingHTTPServer(("127.0.0.1", port), handler_type(GuardedRpc(identity)))
+    # Loopback is deliberate, not a production web server. DB is read-only in API.
+    indexed_db = os.environ.get("DVN_EXPLORER_DB")
+    server = ThreadingHTTPServer(("127.0.0.1", port),
+                                 handler_type(GuardedRpc(identity), indexed_db))
     print("DEVNIRA read-only DEVELOPMENT RPC explorer on 127.0.0.1:" + str(port))
     server.serve_forever()
 
