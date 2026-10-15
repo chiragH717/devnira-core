@@ -65,11 +65,13 @@ jobs:
         run: rustup toolchain install 1.93.0 --profile minimal
       - name: Real native Plonky2 full-depth fixed-key recursive proof, 2-leaf uniqueness and foreign key rejection
         working-directory: zk-circuits
-        env:
-          DEVNIRA_TEST_ARTIFACT_DIR: dvn-v2-development-verifier-artifacts
         run: |
           set -euo pipefail
+          # Cargo runs test binaries with CARGO_MANIFEST_DIR as cwd; use an
+          # absolute directory so both proof tests and workflow agree.
+          export DEVNIRA_TEST_ARTIFACT_DIR="$PWD/dvn-v2-development-verifier-artifacts"
           cargo +1.93.0 test --locked -p qp-wormhole-circuit --lib dvn_v2_recursive22_ -- --nocapture
+          ls -lah "$DEVNIRA_TEST_ARTIFACT_DIR"
           test -s dvn-v2-development-verifier-artifacts/authenticated-22pi-real-leaf-pis.txt
           test -s dvn-v2-development-verifier-artifacts/authenticated-22pi-inner-vk.bin
           test -s dvn-v2-development-verifier-artifacts/authenticated-22pi-recursive-vk.bin
