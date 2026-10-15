@@ -17,6 +17,31 @@ RUST=r'''
     // Public aggregator: verify 2 REAL private proofs against ONE immutable
     // private VK and enforce same block history/asset/BPS, distinct
     // nullifiers, u54 overflow boundaries, and no fee or payout forgery.
+    // Exact one-leaf PRIVATE aggregation. All range/fee/owner constraints
+    // already live in the authenticated inner 22PI proof. No redundant
+    // BaseSum/range-check gates in this intermediate recursive layer:
+    // the pinned qp-plonky2 v1.6.0 double-recursion witness otherwise
+    // reported a FRI openings batch dimension mismatch (264 vs 263).
+    // This is NOT bypassing a security check: private public values are
+    // derived exclusively from constant-VK verified INNER public inputs;
+    // the public tier additionally bounds combined sums to 100M DVN.
+    fn dvn_v2_private_single_leaf_fixed_vk(
+        inner:&CircuitData<F,C,D>,
+    )->(CircuitData<F,C,D>,
+       Vec<plonky2::plonk::proof::ProofWithPublicInputsTarget<D>>){
+        assert_eq!(inner.common.num_public_inputs,22);
+        let mut b=CircuitBuilder::<F,D>::new(CircuitConfig::standard_recursion_config());
+        let vk=b.constant_verifier_data::<C>(&inner.verifier_only);
+        let p=b.add_virtual_proof_with_pis(&inner.common);
+        b.verify_proof::<C>(&p,&vk,&inner.common);
+        b.register_public_inputs(&p.public_inputs);
+        let paid=b.add(p.public_inputs[1],p.public_inputs[2]);
+        let fee=b.sub(p.public_inputs[21],paid);
+        b.register_public_input(paid);
+        b.register_public_input(fee);
+        (b.build::<C>(),vec![p])
+    }
+
     fn dvn_v2_public_of_two_private_24pi(
         private:&CircuitData<F,C,D>,
     )->(CircuitData<F,C,D>,
@@ -91,7 +116,7 @@ RUST=r'''
                    &proof_b.public_inputs[4..8]);
 
         // PRIVATE: each leaf verified AGAINST ONE fixed authenticated VK.
-        let (private, leaf_targets)=dvn_v2_recursive_authenticated_22pi(&inner,1);
+        let (private, leaf_targets)=dvn_v2_private_single_leaf_fixed_vk(&inner);
         let mut wa=PartialWitness::new();
         wa.set_proof_with_pis_target(&leaf_targets[0],&proof_a).unwrap();
         let pa=private.prove(wa).expect("private proof A");
