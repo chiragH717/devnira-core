@@ -1,0 +1,49 @@
+name: DEVNIRA V2 variable-depth cryptographic membership (NOT ON-CHAIN)
+on:
+  pull_request:
+    paths:
+      - scripts/patch_zk_v2_full_depth_candidate.py
+      - tests/test_zk_v2_full_depth_candidate.py
+      - .github/workflows/zk-v2-full-depth.yml
+  push:
+    branches: [main]
+    paths:
+      - scripts/patch_zk_v2_full_depth_candidate.py
+      - tests/test_zk_v2_full_depth_candidate.py
+      - .github/workflows/zk-v2-full-depth.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  actual-v2-variable-depth-merkle-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test fail-closed opt-in Rust source staging
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_zk_v2_full_depth_candidate.py' -v
+          python3 -m py_compile scripts/patch_zk_v2_full_depth_candidate.py
+      - name: Clone exact approved Plonky2 source revision
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/Quantus-Network/qp-zk-circuits.git zk-circuits
+          PIN=$(python3 -c 'import json;print(json.load(open("config/upstream-pins.json"))["zk_circuits"]["sha"])')
+          git -C zk-circuits fetch --depth 1 origin "$PIN"
+          git -C zk-circuits checkout --detach "$PIN"
+          test "$(git -C zk-circuits rev-parse HEAD)" = "$PIN"
+      - name: Stage bounded exact native leaf, conservation and V2 variable-depth root constraints
+        run: |
+          set -euo pipefail
+          python3 scripts/patch_zk_leaf_amount_v2.py zk-circuits
+          python3 scripts/patch_zk_native_conservation.py zk-circuits
+          python3 scripts/patch_zk_v2_full_depth_candidate.py zk-circuits
+      - name: Install pinned Rust
+        run: rustup toolchain install 1.93.0 --profile minimal
+      - name: Prove and verify real Plonky2 depth-1 and depth-2 V2 root paths; reject forged witness and domain
+        working-directory: zk-circuits
+        run: cargo +1.93.0 test --locked -p qp-wormhole-circuit --lib dvn_v2_full_depth_ -- --nocapture
+      - name: Fail closed on active-chain readiness
+        run: |
+          echo 'PASS means real V2 bounded-depth proof tests work in opt-in Plonky2 source. NOT a mainnet or settlement runtime. A client-chosen root/tag and non-persisted nullifier MUST NEVER authorize payouts.' >> "$GITHUB_STEP_SUMMARY"
