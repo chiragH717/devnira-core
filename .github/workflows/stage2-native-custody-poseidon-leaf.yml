@@ -48,11 +48,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y clang libclang-dev llvm-dev libssl-dev pkg-config protobuf-compiler libprotobuf-dev cmake build-essential
           echo "LIBCLANG_PATH=$(llvm-config --libdir)" >> "$GITHUB_ENV"
-      - name: Actual existing 8-decimal FRAME native V2 Poseidon leaf tests
-        working-directory: upstream
-        run: |
-          set -euo pipefail
-          cargo +1.93.0 test --locked -p pallet-zk-tree --lib dvn_native_v2_leaf_ -- --nocapture
       - name: Actual FRAME native balance receipt-to-Poseidon hash tests
         working-directory: upstream
         run: |

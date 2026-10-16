@@ -75,8 +75,11 @@ RUST_TEST=r'''
                 };
                 let same_tree=pallet_zk_tree::tree::hash_leaf_native_v2::<Test>(&leaf)
                     .expect("native V2 reference leaf");
+                // AccountId32 implements multiple AsRef variants: select bytes.
+                let account_bytes:[u8;32]=
+                    <AccountId32 as AsRef<[u8]>>::as_ref(&who).try_into().unwrap();
                 let from_components=pallet_zk_tree::tree::dvn_native_v2_commitment_from_receipt(
-                    who.as_ref().try_into().unwrap(),seq,value).unwrap();
+                    account_bytes,seq,value).unwrap();
                 assert_eq!(same_tree,from_components,
                     "custody receipt must match exactly the proof stack's V2 leaf hash");
                 assert_eq!(DvnV2EscrowCommitment::<Test>::get(id),Some(same_tree));

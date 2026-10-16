@@ -42,6 +42,7 @@ class V2NativeCommitmentCompositionTests(unittest.TestCase):
         self.assertIn(LEDGER_MARKER,lib)
         self.assertIn("pallet_zk_tree::tree::dvn_native_v2_commitment_from_receipt",lib)
         self.assertIn("DvnV2EscrowCommitment::<T>::insert(id,commitment)",lib)
+        self.assertIn("<AccountId32 as AsRef<[u8]>>::as_ref(&who)",tests)
         self.assertIn("DvnV2EscrowReceipt::<T>::insert(id,(recipient_bytes,count,amount_base_units));",lib)
         self.assertIn("TransactionOutcome::Rollback(Err(err))",lib)
         self.assertNotIn("pub fn devnira_v2_record_native_escrow_internal",lib)
