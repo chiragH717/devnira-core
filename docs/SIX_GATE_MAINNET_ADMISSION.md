@@ -4,11 +4,11 @@ This produces **one report** for all six remaining release streams, without rela
 
 Run locally:
 
-    python3 scripts/six_gate_release_snapshot.py --revision "$(git rev-parse HEAD)" --json-out dvn-six-gate-status.json --markdown-out dvn-six-gate-status.md
+    python3 -m scripts.six_gate_release_snapshot --revision "$(git rev-parse HEAD)" --json-out dvn-six-gate-status.json --markdown-out dvn-six-gate-status.md
 
 To make an attempted production build fail when signed production evidence is absent:
 
-    python3 scripts/six_gate_release_snapshot.py --revision "$(git rev-parse HEAD)" --require-evidence
+    python3 -m scripts.six_gate_release_snapshot --revision "$(git rev-parse HEAD)" --require-evidence
 
 The dedicated GitHub workflow uploads one summary artifact. **GREEN means that the safety report ran**, never that mainnet is ready.
 
