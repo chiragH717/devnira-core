@@ -125,17 +125,21 @@ RUST=r'''
         let pb=private.prove(wb).expect("private proof B");
         private.verify(pa.clone()).expect("private fixed leaf VK A");
         private.verify(pb.clone()).expect("private fixed leaf VK B");
+        eprintln!("DVN_TWO_TIER_STAGE: PRIVATE_PROOFS_VERIFIED");
         assert_eq!(pa.public_inputs.len(),24);
         assert_eq!(pb.public_inputs.len(),24);
 
         // PUBLIC: both private proofs are checked against constant
         // PRIVATE verifier data, not caller-supplied virtual verifier.
         let (public, batch_targets)=dvn_v2_public_of_two_private_24pi(&private);
+        eprintln!("DVN_TWO_TIER_STAGE: PUBLIC_TARGETS_BUILT");
         let mut pw=PartialWitness::new();
         pw.set_proof_with_pis_target(&batch_targets[0],&pa).unwrap();
         pw.set_proof_with_pis_target(&batch_targets[1],&pb).unwrap();
+        eprintln!("DVN_TWO_TIER_STAGE: PUBLIC_WITNESSES_ASSIGNED");
         let public_proof=public.prove(pw).expect("real TWO-tier public aggregation");
         public.verify(public_proof.clone()).expect("real public fixed-key recursion");
+        eprintln!("DVN_TWO_TIER_STAGE: PUBLIC_50PI_PROOF_VERIFIED");
         assert_eq!(public_proof.public_inputs.len(),50);
         assert_eq!(public_proof.public_inputs[48],f(999_600_000));
         assert_eq!(public_proof.public_inputs[49],f(400_000));
@@ -173,6 +177,7 @@ RUST=r'''
         assert!(replay_result.is_err() || replay_result.unwrap().is_err(),
                 "cross-private-batch nullifier replay accepted");
 
+        eprintln!("DVN_TWO_TIER_STAGE: DUPLICATE_PRIVATE_PROOF_REJECTED");
         // A proof built by the right ABI but an unrelated private VK
         // must not be accepted as an input to public aggregation.
         let mut fake_builder=CircuitBuilder::<F,D>::new(
@@ -185,10 +190,14 @@ RUST=r'''
             foreign_witness.set_target(*p,F::ZERO).unwrap();
         }
         let foreign_proof=foreign.prove(foreign_witness).unwrap();
-        let mut malicious=PartialWitness::new();
-        malicious.set_proof_with_pis_target(&batch_targets[0],&pa).unwrap();
-        malicious.set_proof_with_pis_target(&batch_targets[1],&foreign_proof).unwrap();
-        let rejection=catch_unwind(AssertUnwindSafe(||public.prove(malicious)));
+        // A foreign circuit can have the same PI count but a different FRI
+        // shape. Rejection may occur during witness assignment OR proving.
+        let rejection=catch_unwind(AssertUnwindSafe(|| {
+            let mut malicious=PartialWitness::new();
+            malicious.set_proof_with_pis_target(&batch_targets[0],&pa)?;
+            malicious.set_proof_with_pis_target(&batch_targets[1],&foreign_proof)?;
+            public.prove(malicious)
+        }));
         assert!(rejection.is_err() || rejection.unwrap().is_err(),
             "public aggregator accepted a foreign private verifier key");
     }

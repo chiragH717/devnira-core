@@ -74,6 +74,7 @@ jobs:
         run: |
           set -euo pipefail
           rustup toolchain install 1.93.0 --profile minimal
+          export RUST_BACKTRACE=1
           export DEVNIRA_TEST_ARTIFACT_DIR="$PWD/v2-real-proof-output"
           # Fail fast on the NEW production-critical nested PRIVATE/PUBLIC
           # recursion before spending several minutes re-proving old leaf tests.
