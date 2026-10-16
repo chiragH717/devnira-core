@@ -1,0 +1,53 @@
+name: DEVNIRA real native V2 custody accounting (NO SEND)
+on:
+  pull_request:
+    paths:
+      - scripts/patch_zk_v2_native_custody_ledger.py
+      - tests/test_zk_v2_native_custody_ledger.py
+      - .github/workflows/stage2-v2-native-custody.yml
+      - config/upstream-pins.json
+  push:
+    branches: [main]
+    paths:
+      - scripts/patch_zk_v2_native_custody_ledger.py
+      - tests/test_zk_v2_native_custody_ledger.py
+      - .github/workflows/stage2-v2-native-custody.yml
+      - config/upstream-pins.json
+permissions:
+  contents: read
+jobs:
+  actual-native-frame-custody:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check source fail-closed patch guard
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_zk_v2_native_custody_ledger.py' -v
+      - name: Fetch exact immutable FRAME pinned version, apply real source
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/Quantus-Network/chain.git upstream
+          PIN=$(python3 -c 'import json;print(json.load(open("config/upstream-pins.json"))["upstream_chain"]["sha"])')
+          git -C upstream fetch --depth 1 origin "$PIN"
+          git -C upstream checkout --detach "$PIN"
+          test "$(git -C upstream rev-parse HEAD)" = "$PIN"
+          python3 scripts/patch_zk_v2_native_custody_ledger.py upstream
+          git -C upstream diff --stat
+      - name: Pinned Rust toolchain and native FRAME build dependencies
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.93.0 --profile minimal
+          sudo apt-get update
+          sudo apt-get install -y clang libclang-dev llvm-dev libssl-dev pkg-config protobuf-compiler libprotobuf-dev cmake build-essential
+          echo "LIBCLANG_PATH=$(llvm-config --libdir)" >> "$GITHUB_ENV"
+      - name: Actually execute native FRAME currency escrow accounting tests
+        working-directory: upstream
+        run: |
+          set -euo pipefail
+          cargo +1.93.0 test --locked -p pallet-wormhole --lib dvn_v2_deposit_ -- --nocapture
+      - name: Explicit non-production evidence
+        run: |
+          echo "Real FRAME currency-accounting unit tests only; no native finalized V2 root, public signed deposit, production VK or active settlement." >> "$GITHUB_STEP_SUMMARY"
+          echo "NOT a launch candidate. No signed wallets or mainnet." >> "$GITHUB_STEP_SUMMARY"
