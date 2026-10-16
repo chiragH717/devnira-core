@@ -1,38 +1,45 @@
-# DEVNIRA V2 PRIVATE → PUBLIC recursion: blocker confirmed (2026-10-15)
+# DEVNIRA V2 PRIVATE → PUBLIC recursion: corrected diagnosis (2026-10-16)
 
-**BLOCKED — do not merge #27, publish production verifier-key hashes, enable settlement or ship a signed wallet.**
+**The previously reported nested FRI blocker was misdiagnosed. Production remains BLOCKED.**
 
-## Reproducible evidence
+## Verified new evidence
 
-Pinned source:
-- ZK: `Quantus-Network/qp-zk-circuits@fa5f57dc1a1b755ff1b7f4fdb4309e1e06669ba2`
-- FRAME: `Quantus-Network/chain@482c5b9e02bec0adc70797eade0a67f60baf2619`
-- qp-plonky2 `1.6.0` from locked dependency, Rust `1.93.0`.
+- Tested source: `0f79d6ff670cddd6b51df4756b801b608c9657fb` on PR #27.
+- Integrated CI: https://github.com/chiragH717/devnira-core/actions/runs/38851923003
+- Native prover job `116814819526`: SUCCESS.
+- The actual depth16 22PI leaf → 24PI PRIVATE → 50PI PUBLIC proof is generated and cryptographically verified. Both private proofs refer to the same historical root and distinct nullifiers; duplicate and altered-output rejection pass.
+- The previous `264/263` panic happens during assignment of a deliberately FOREIGN circuit proof, after the valid 50PI proof has been verified. That assignment was outside `catch_unwind`; the old logs had no stage markers/backtrace and did not establish that genuine nested proving failed.
+- The fix includes foreign witness assignment and proving in the rejection boundary. It adds positive-stage markers and a backtrace. No opening arrays are truncated/padded, no assertions removed, no verification bypassed, no dependency upgraded, and no cryptographic circuit constraints weakened.
+- This foreign-circuit case establishes incompatible-proof rejection; it alone is not a comprehensive same-shape wrong-key soundness proof.
 
-The full-depth 16-level 22PI leaf and **existing first-tier fixed-VK recursion** compiled and proved successfully in GitHub CI. New candidate two-tier circuit composition compiles, but proving a PUBLIC wrapper over authentic PRIVATE wrapper proofs fails in qp-plonky2's `iop/witness.rs:75` at `set_extension_targets`:
+The genuine private/public proof, verifier-only and common data are exported from that successful job. They are DEVELOPMENT evidence, never approved production keys.
 
-```
-assertion left == right failed
-left: 264
-right: 263
-```
+## Downstream validation
 
-The mismatch is a FRI opening-target length against proof opening length while populating the second-tier recursive proof witness. It was independently reproduced in the two-tier CI workflow. Merely changing the intermediate private wrapper to avoid redundant range-check gadgets **did not** fix the mismatch.
+FRAME proof-byte verification, actual balance/fee/nullifier settlement, replay and insufficient-funds rollback steps have succeeded in job `116815940482`. The same job's full native node + embedded-WASM release build succeeded on 2026-10-16 at 05:23:58 UTC (32m30s build). All 8 FRAME tests passed: 2 proof-byte compatibility, 4 atomic escrow/replay/tamper/rollback, 2 private/public settlement/history tests. The complete integrated run finished SUCCESS. Test-only settlement is excluded from WASM via `cfg(test)`; compiling that node does NOT mean settlement executed inside WASM.
 
-Confirmed failures:
-- `https://github.com/chiragH717/devnira-core/actions/runs/38785505810` — original private wrapper, native PUBLIC-of-PRIVATE test FAIL.
-- `https://github.com/chiragH717/devnira-core/actions/runs/38787210740` — minimal authenticated private wrapper still FAILs with **the same 264/263 mismatch**.
+## Remaining production boundary
 
-The previous first-tier verified native FRAME compatibility still stands: `https://github.com/chiragH717/devnira-core/actions/runs/38766330018` (PR #26, merged), but **it does not prove the two-tier pipeline**.
+Escrow integration is `#[cfg(test)]`; no production dispatchable or active V2 verifier exists. The node remains NO SEND. Mock historical `BlockHash` and pre-funded test escrow do not prove independent chain history or real deposit custody. The V1 deposit recorder still has `10^10` quantization. Dynamic fee policy, production domain separation, bounded dispatch/weights, consensus-pinned reviewed VKs, exact native deposit commitments and signed testnet transactions must be integrated before activation. Independent external review remains required.
 
-## Correct engineering resolution
+## Historical failure runs (diagnosis superseded, evidence retained)
 
-1. Reproduce and diagnose the *exact* FRI opening layout mismatch in the locked `qp-plonky2` v1.6.0 recursive target/proof builder (check target `FriOpenings` construction against nested `Proof` serialization, common circuit data and lookup/oracle layout). Add a minimal upstream regression test that fails BEFORE changing code.
-2. Patch/fork and pin the actual upstream verifier/prover dependency source revision or upgrade to a demonstrably compatible, reviewed release. Do **not** truncate/pad witness openings, remove `debug_assert_eq!`, disable proof verification, or accept attacker-controlled verifier data to force a green result.
-3. Verify truly authentic two-level private/public proofs, duplicates, foreign private keys, changed historical header, and exact 8-decimal native fees. Re-export real public/private `verifier_only.bin`, common data, immutable source pins, and SHA-256 hashes. Public hashes are *candidate* material, not approvals.
-4. Only once these exact proofs pass the **same pinned FRAME native and WASM** runtime and a separate security/economic audit, pin production-approved VK commitments into a real *non-test* FRAME runtime. Do not activate `#[cfg(test)]` escrow helpers or treat a mocked `BlockHash` as independent finalized DVN history.
-5. Production is further blocked by 12-decimal V1 deposit recorder still present in the inert 8-decimal node, lack of independently funded DVN deposits/escrow, true finalized historical Merkle state, signed wallet and spendable independent genesis.
+- https://github.com/chiragH717/devnira-core/actions/runs/38785505810
+- https://github.com/chiragH717/devnira-core/actions/runs/38787210740
 
-No Gold/Blue original brand, treasury allocation, genesis keys or actual chain funds were changed.
+Do not repeat those old tests or patch qp-plonky2 on the assumption of a demonstrated upstream nested FRI bug. The new stage-specific evidence identifies a negative-test harness failure.
 
-**Engineering interpretation:** real source work was staged in #27, but **ACTIVE PRIVATE/PUBLIC PRODUCTION AGGREGATOR and APPROVED VK are NOT FINISHED**. Keep #27 unmerged until the exact new CI and security gates pass. Stop replaying old successful first-tier tests as if they prove this missing step.
+No Gold/Blue assets, company treasury address, genesis timestamp or production funds changed.
+
+## Public development verifier fingerprints
+
+Source `0f79d6ff670cddd6b51df4756b801b608c9657fb`, run `38851923003`, prover job `116814819526`, artifact `12025987018`. SHA256 from the successful prover job:
+
+| File | SHA256 |
+|---|---|
+| `private-v2-24pi-vk.bin` | `559d8dbbb045ae9a8afdb01fd12c552aca51e88ca89b8ef90f61e2b44c7929f8` |
+| `private-v2-24pi-common.bin` | `2077aeef0cea813aa393a5ef6926fc09f1481378f95bf7514270342c8c77d31b` |
+| `public-v2-50pi-vk.bin` | `7029e733370b52d7f0549a8e097062257c3da8c0a031f39af8b9113ec06ae564` |
+| `public-v2-50pi-common.bin` | `d1e8df0c83a346063e34c4b2de12b1959c47051c06fe51598ccbb64e0db12e16` |
+
+These identify this development output only. `config/dvn-v2-private-public-vk-candidate.json` intentionally retains null approved candidate pins and false production activation flags. Hashes do not constitute an independent audit or a trusted runtime key installation.
