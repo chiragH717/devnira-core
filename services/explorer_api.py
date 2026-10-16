@@ -12,11 +12,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 from services.network_rpc import ChainRejected, GuardedRpc, NodeIdentity, valid_hash
 from services.finalized_indexer import IndexRejected, index_status, lookup_block
+from services.finalized_extrinsics import lookup_extrinsic,ExtrinsicRejected
 
 _BLOCK = re.compile(r"/api/block/([0-9]{1,20})\Z")
 _BY_HASH = re.compile(r"/api/hash/(0x[0-9a-fA-F]{64})\Z")
 _IDX_BLOCK = re.compile(r"/api/index/block/([0-9]{1,19})\Z")
 _IDX_HASH = re.compile(r"/api/index/hash/(0x[0-9a-fA-F]{64})\Z")
+_IDX_EXTRINSIC = re.compile(r"/api/index/extrinsic/(0x[0-9a-fA-F]{64})\Z")
 
 
 def query(rpc, path, indexed_db=None):
@@ -28,6 +30,10 @@ def query(rpc, path, indexed_db=None):
             return 200, index_status(indexed_db)
         by_height = _IDX_BLOCK.fullmatch(path)
         by_hash = _IDX_HASH.fullmatch(path)
+        by_extrinsic=_IDX_EXTRINSIC.fullmatch(path)
+        if by_extrinsic:
+            item=lookup_extrinsic(indexed_db,by_extrinsic[1])
+            return (200,item) if item is not None else (404,{"error":"Finalized extrinsic not indexed"})
         if by_height:
             block = lookup_block(indexed_db, height=int(by_height[1]))
             return (200, block) if block is not None else (404, {"error":"Finalized block not indexed"})
@@ -57,7 +63,7 @@ def handler_type(rpc, indexed_db=None):
                 return
             try:
                 code, value = query(rpc, parsed.path, indexed_db)
-            except (ChainRejected, IndexRejected, OSError, TimeoutError, ValueError):
+            except (ChainRejected, IndexRejected, ExtrinsicRejected, OSError, TimeoutError, ValueError):
                 code, value = 503, {"error": "Verified DEVNIRA RPC unavailable or incompatible"}
             self._send(code, value)
 
