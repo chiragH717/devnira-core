@@ -20,6 +20,8 @@ jobs:
           # Refuse fake all-true checklists, unapproved auditors, unsigned
           # manifests, tampered test reports and unknown chain/source claims.
           python3 scripts/verify_signed_release_evidence.py config/release-evidence.json --auditors config/trusted-release-auditors.json --artifact-root evidence/production
+          # Additional mandatory independent header/escrow/GPU/domain artifacts.
+          python3 -m scripts.six_gate_release_snapshot --revision "$GITHUB_SHA" --require-evidence
       - name: Checkout pinned upstream source (never moving HEAD)
         run: |
           set -euo pipefail
