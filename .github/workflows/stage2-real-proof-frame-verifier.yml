@@ -11,6 +11,9 @@ on:
       - scripts/patch_zk_v2_private_public_frame_integration.py
       - tests/test_zk_v2_private_public_two_tier.py
       - config/dvn-v2-private-public-vk-candidate.json
+      - config/dvn-v2-dev-vk-fingerprints.json
+      - scripts/verify_v2_dev_vk_artifacts.py
+      - tests/test_verify_v2_dev_vk_artifacts.py
       - .github/workflows/stage2-real-proof-frame-verifier.yml
       - config/upstream-pins.json
   push:
@@ -25,6 +28,9 @@ on:
       - scripts/patch_zk_v2_private_public_frame_integration.py
       - tests/test_zk_v2_private_public_two_tier.py
       - config/dvn-v2-private-public-vk-candidate.json
+      - config/dvn-v2-dev-vk-fingerprints.json
+      - scripts/verify_v2_dev_vk_artifacts.py
+      - tests/test_verify_v2_dev_vk_artifacts.py
       - .github/workflows/stage2-real-proof-frame-verifier.yml
   workflow_dispatch:
 permissions:
@@ -41,6 +47,7 @@ jobs:
           python3 -m unittest discover -s tests -p 'test_zk_v2_frame_crypto_proof_bytes.py' -v
           python3 -m unittest discover -s tests -p 'test_zk_v2_atomic_escrow_test_only.py' -v
           python3 -m unittest discover -s tests -p 'test_zk_v2_private_public_two_tier.py' -v
+          python3 -m unittest discover -s tests -p 'test_verify_v2_dev_vk_artifacts.py' -v
           python3 - <<'PY'
           import json
           c=json.load(open('config/dvn-v2-private-public-vk-candidate.json'))
@@ -85,6 +92,7 @@ jobs:
           done
           (cd v2-real-proof-output && sha256sum *.bin) > v2-real-proof-output/SHA256SUMS.txt
           (cd v2-real-proof-output && sha256sum -c SHA256SUMS.txt)
+          python3 ../scripts/verify_v2_dev_vk_artifacts.py v2-real-proof-output
           echo 'V2 candidate PRIVATE and PUBLIC VK SHA256 (not approved):'
           sha256sum v2-real-proof-output/{private-v2-24pi-vk.bin,private-v2-24pi-common.bin,public-v2-50pi-vk.bin,public-v2-50pi-common.bin}
       - name: Upload only real test-generated serialized proofs and public development VK
@@ -109,6 +117,7 @@ jobs:
         run: |
           set -euo pipefail
           (cd v2-real-proof-output && sha256sum -c SHA256SUMS.txt)
+          python3 scripts/verify_v2_dev_vk_artifacts.py v2-real-proof-output
           python3 -m unittest discover -s tests -p 'test_zk_v2_frame_crypto_proof_bytes.py' -v
       - name: Fetch exact unchanged FRAME native/WASM and ZK source pins
         run: |

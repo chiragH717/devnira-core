@@ -74,6 +74,22 @@ mod devnira_v2_private_public_actual_frame_escrow {
         let (public_bytes,public_vk,public_pi)=actual_proof("public-v2-50pi",50);
         assert_eq!(&public_pi[0..24],private_pi.as_slice(),
             "public aggregate first segment must contain genuine verified PRIVATE proof");
+        // Authenticate the independently generated second PRIVATE proof
+        // against the SAME fixed PRIVATE verifier key, not synthetic PIs.
+        let other_bytes=std::fs::read(PathBuf::from(
+            std::env::var("DEVNIRA_REAL_V2_PROOF_ARTIFACT_DIR").unwrap())
+            .join("private-v2-24pi-other-proof.bin"))
+            .expect("real second private witness proof missing");
+        assert!(!other_bytes.is_empty() && other_bytes.len() <= crate::MAX_PROOF_BYTES);
+        let other_proof=ProofWithPublicInputs::<F,C,D>::from_bytes(
+            other_bytes.clone(),&private_verifier.circuit_data.common).unwrap();
+        assert_eq!(other_proof.to_bytes(),other_bytes);
+        private_verifier.verify(other_proof.clone())
+            .expect("second private proof must verify against the SAME fixed PRIVATE key");
+        let second_private_pi=other_proof.public_inputs.iter().map(
+            |v|v.to_canonical_u64()).collect::<Vec<_>>();
+        assert_eq!(&public_pi[24..48],second_private_pi.as_slice(),
+            "public aggregate second segment must contain genuine verified PRIVATE proof");
         assert_eq!(&public_pi[16..21],&public_pi[40..45],
             "all private segments must reference identical historical root");
         assert_ne!(&public_pi[4..8],&public_pi[28..32],

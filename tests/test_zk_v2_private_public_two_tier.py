@@ -60,6 +60,8 @@ class V2PrivatePublicSourceTests(unittest.TestCase):
             "Balances::total_issuance()",
             "Wormhole::used_nullifiers",
             "public aggregate first segment must contain genuine verified PRIVATE proof",
+            "private-v2-24pi-other",
+            "public aggregate second segment must contain genuine verified PRIVATE proof",
             "insufficient escrow must atomically roll back",
         ):
             self.assertIn(invariant,s)
