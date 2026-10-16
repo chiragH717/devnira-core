@@ -1,0 +1,63 @@
+name: DEVNIRA exact native V2 custody-to-Poseidon leaf receipts (NO ROOT/NO SEND)
+on:
+  pull_request:
+    paths:
+      - scripts/patch_zk_v2_custody_commitment.py
+      - tests/test_zk_v2_custody_commitment.py
+      - scripts/patch_zk_tree_native_v2.py
+      - scripts/patch_zk_v2_native_custody_ledger.py
+      - .github/workflows/stage2-native-custody-poseidon-leaf.yml
+      - config/upstream-pins.json
+  push:
+    branches: [main]
+    paths:
+      - scripts/patch_zk_v2_custody_commitment.py
+      - tests/test_zk_v2_custody_commitment.py
+      - scripts/patch_zk_tree_native_v2.py
+      - scripts/patch_zk_v2_native_custody_ledger.py
+      - .github/workflows/stage2-native-custody-poseidon-leaf.yml
+      - config/upstream-pins.json
+permissions:
+  contents: read
+jobs:
+  real-frame-poseidon-custody:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fail-closed composition source tests
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_zk_v2_custody_commitment.py' -v
+      - name: Fetch exact pinned chain and stage TREE then CUSTODY then RECEIPT hash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/Quantus-Network/chain.git upstream
+          PIN=$(python3 -c 'import json;print(json.load(open("config/upstream-pins.json"))["upstream_chain"]["sha"])')
+          git -C upstream fetch --depth 1 origin "$PIN"
+          git -C upstream checkout --detach "$PIN"
+          test "$(git -C upstream rev-parse HEAD)" = "$PIN"
+          python3 scripts/patch_zk_tree_native_v2.py upstream
+          python3 scripts/patch_zk_v2_native_custody_ledger.py upstream
+          python3 scripts/patch_zk_v2_custody_commitment.py upstream
+          git -C upstream diff --stat
+      - name: Pinned Rust and native dependencies
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.93.0 --profile minimal
+          sudo apt-get update
+          sudo apt-get install -y clang libclang-dev llvm-dev libssl-dev pkg-config protobuf-compiler libprotobuf-dev cmake build-essential
+          echo "LIBCLANG_PATH=$(llvm-config --libdir)" >> "$GITHUB_ENV"
+      - name: Actual existing 8-decimal FRAME native V2 Poseidon leaf tests
+        working-directory: upstream
+        run: |
+          set -euo pipefail
+          cargo +1.93.0 test --locked -p pallet-zk-tree --lib dvn_native_v2_leaf_ -- --nocapture
+      - name: Actual FRAME native balance receipt-to-Poseidon hash tests
+        working-directory: upstream
+        run: |
+          set -euo pipefail
+          cargo +1.93.0 test --locked -p pallet-wormhole --lib dvn_v2_deposit_ -- --nocapture
+      - name: Explicit development-only evidence
+        run: |
+          echo "Verified native escrow receipts to V2 Poseidon2 exact leaf. No Merkle root, finalized independent history, caller signed deposit, production verifier, active settlement, WASM witness or Send." >> "$GITHUB_STEP_SUMMARY"
