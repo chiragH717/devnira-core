@@ -5,6 +5,8 @@ on:
       - services/finalized_indexer.py
       - services/explorer_api.py
       - tests/test_finalized_indexer.py
+      - tests/test_finalized_extrinsic_index.py
+      - services/finalized_extrinsics.py
       - .github/workflows/finalized-indexer.yml
   push:
     branches: [main]
@@ -12,6 +14,8 @@ on:
       - services/finalized_indexer.py
       - services/explorer_api.py
       - tests/test_finalized_indexer.py
+      - tests/test_finalized_extrinsic_index.py
+      - services/finalized_extrinsics.py
       - .github/workflows/finalized-indexer.yml
   workflow_dispatch:
 permissions:
@@ -26,8 +30,9 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m unittest discover -s tests -p 'test_finalized_indexer.py' -v
+          python3 -m unittest discover -s tests -p 'test_finalized_extrinsic_index.py' -v
           python3 -m unittest discover -s tests -p 'test_public_product_candidates.py' -v
-          python3 -m py_compile services/finalized_indexer.py services/explorer_api.py
+          python3 -m py_compile services/finalized_indexer.py services/finalized_extrinsics.py services/explorer_api.py
       - name: Confirm no false production claims
         run: |
           grep -q '"mainnet_ready":False' services/finalized_indexer.py
