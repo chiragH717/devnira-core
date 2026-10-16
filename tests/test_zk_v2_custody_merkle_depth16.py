@@ -22,8 +22,7 @@ class V2Depth16CompositionTests(unittest.TestCase):
             "                    DvnV2EscrowCommitment::<T>::insert(id,commitment);\n")
         self.tests.write_text(
             "// DEVNIRA_V2_NATIVE_ESCROW_CUSTODY_NATIVE_FRAME_TESTS\n"
-            "    use crate::pallet::{DvnV2EscrowRecipientCount,DvnV2EscrowReceipt,"
-            "DvnV2EscrowCommitment};\n"
+            "        DvnV2EscrowRecipientCount,DvnV2EscrowReceipt,DvnV2EscrowCommitment};\n"
             "    #[test]\n"
             "    fn dvn_v2_deposit_bad_alias_zero_overflow_vault_and_failed_debit_reject(){\n")
     def test_depth16_atomic_and_nonheader(self):
