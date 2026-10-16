@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "classification": "TWO-TIER DEVELOPMENT CANDIDATE — production signature/approvals absent",
+  "circuit_pin": "fa5f57dc1a1b755ff1b7f4fdb4309e1e06669ba2",
+  "chain_pin": "482c5b9e02bec0adc70797eade0a67f60baf2619",
+  "rust": "1.93.0",
+  "hierarchy": [
+    {
+      "tier": "leaf",
+      "depth": 16,
+      "public_inputs": 22,
+      "authenticates": "secret owner, Poseidon2 Merkle membership, nullifier, 8-decimal fee, history"
+    },
+    {
+      "tier": "private",
+      "number_leaf_proofs": 1,
+      "public_inputs": 24,
+      "authenticates": "fixed leaf verifier data, exact private payout+fee"
+    },
+    {
+      "tier": "public",
+      "number_private_proofs": 2,
+      "public_inputs": 50,
+      "authenticates": "fixed private verifier data, same historical root/policy, distinct nullifiers, aggregate payout+fee with 100M DVN cap"
+    }
+  ],
+  "vk_fingerprint_algorithm": "sha256(verifier_only.bin) AND sha256(common.bin) for BOTH layers",
+  "candidate_vk_sha256": null,
+  "production_vk_reviewed": false,
+  "production_vk_approved": false,
+  "runtime_pinned_production_vk": false,
+  "production_runtime_active": false,
+  "production_funding_backing_proven": false,
+  "history_finality_source": "test mocked FRAME block hash, NOT independent chain state",
+  "release_allowed": false,
+  "production_activation_checks": [
+    "Independent review of private and public Plonky2 circuit constraints and verifier serialization, VK SHA256 locked into audited runtime",
+    "Reproducible isolated 8-decimal deposit recorder and ZK Merkle root derived from actual finalized independent DEVNIRA block history",
+    "Signed user deposit/send, real pre-funded escrow custody and conservation, bounded/weighted unsigned proof dispatch",
+    "Atomic settlement and 2-node native/WASM/economic adversarial replay tests, external audit and independent genesis public address"
+  ]
+}
