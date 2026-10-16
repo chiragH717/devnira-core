@@ -1,0 +1,69 @@
+name: DEVNIRA six-gate mainnet evidence snapshot (NO SEND / NO RELEASE)
+on:
+  pull_request:
+    paths:
+      - scripts/six_gate_release_snapshot.py
+      - tests/test_six_gate_release_snapshot.py
+      - config/genesis-proposal.json
+      - config/trusted-release-auditors.json
+      - scripts/release_evidence_gate.py
+      - scripts/verify_signed_release_evidence.py
+      - .github/workflows/mainnet-six-gate-snapshot.yml
+      - .github/workflows/production-build.yml
+  push:
+    branches: [main]
+    paths:
+      - scripts/six_gate_release_snapshot.py
+      - tests/test_six_gate_release_snapshot.py
+      - config/genesis-proposal.json
+      - config/trusted-release-auditors.json
+      - scripts/release_evidence_gate.py
+      - scripts/verify_signed_release_evidence.py
+      - .github/workflows/mainnet-six-gate-snapshot.yml
+      - .github/workflows/production-build.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  six-gate-blocker-report-only:
+    name: Verify six-gate BLOCKED report, not mainnet readiness
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check all six gates, forged claims, and evidence tampering
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_six_gate_release_snapshot.py' -v
+          python3 -m unittest discover -s tests -p 'test_release_evidence_gate.py' -v
+          python3 -m unittest discover -s tests -p 'test_verify_signed_release_evidence.py' -v
+      - name: Create consolidated six-gate report for this exact source revision
+        run: |
+          set -euo pipefail
+          python3 scripts/six_gate_release_snapshot.py \
+            --revision "$GITHUB_SHA" \
+            --json-out dvn-six-gate-status.json \
+            --markdown-out dvn-six-gate-status.md
+          test -s dvn-six-gate-status.json
+          test -s dvn-six-gate-status.md
+          cat dvn-six-gate-status.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Confirm missing production evidence cannot pass strict release gate
+        run: |
+          set -euo pipefail
+          if test -f config/release-evidence.json; then
+            echo "Signed evidence present; manual production job must independently validate it."
+          else
+            if python3 scripts/six_gate_release_snapshot.py --revision "$GITHUB_SHA" --require-evidence; then
+              echo "SECURITY FAILURE: empty release evidence was accepted!"
+              exit 1
+            fi
+            echo "EXPECTED BLOCKED — dev CI passing is not a public mainnet launch."
+          fi
+      - name: Upload single release blocker report (NOT MAINNET)
+        uses: actions/upload-artifact@v4
+        with:
+          name: devnira-six-gate-status-NOT-MAINNET
+          path: |
+            dvn-six-gate-status.json
+            dvn-six-gate-status.md
+          if-no-files-found: error
