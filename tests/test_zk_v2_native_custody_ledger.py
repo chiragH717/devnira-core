@@ -42,6 +42,10 @@ class NativeV2CustodyTests(unittest.TestCase):
         self.assertIn("dvn_v2_deposit_exact_base_unit_native_accounting_no_mint",tests)
         self.assertIn("dvn_v2_deposit_bad_alias_zero_overflow_vault_and_failed_debit_reject",tests)
         self.assertIn("Balances::total_issuance()",tests)
+        self.assertIn("use frame_support::traits::fungible::Inspect;",tests)
+        self.assertIn("dvn_v2_deposit_independent_recipients_and_exact_receipt_order",tests)
+        self.assertIn("dvn_v2_deposit_underbacked_vault_and_reused_receipt_fail_atomically",tests)
+        self.assertIn("!DvnV2EscrowReceipt::<T>::contains_key(id)",data)
         with self.assertRaisesRegex(ValueError,"already installed"):
             patch(self.root)
     def test_pinned_source_drift_aborts_without_partial_write(self):

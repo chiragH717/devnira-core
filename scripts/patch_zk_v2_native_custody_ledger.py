@@ -57,6 +57,9 @@ RUST=r'''
             let next=id.checked_add(1).ok_or(Error::<T>::InvalidProofPublicInputs)?;
             let count=DvnV2EscrowRecipientCount::<T>::get(recipient_bytes);
             let next_count=count.checked_add(1).ok_or(Error::<T>::InvalidProofPublicInputs)?;
+            // Never overwrite an existing receipt under a forged/stale sequence.
+            ensure!(!DvnV2EscrowReceipt::<T>::contains_key(id),
+                Error::<T>::InvalidProofPublicInputs);
             let total=DvnV2EscrowTotal::<T>::get().checked_add(amount_base_units)
                 .filter(|v|*v<=MAX).ok_or(Error::<T>::InvalidProofPublicInputs)?;
             let amount:BalanceOf<T>=amount_base_units.try_into()
@@ -91,6 +94,8 @@ mod dvn_v2_native_escrow_internal_tests{
         DvnV2EscrowRecipientCount,DvnV2EscrowReceipt};
     use sp_core::crypto::AccountId32;
     use qp_wormhole::TransferProofRecorder;
+    // Imported explicitly: pallet-balances exposes balance via FRAME Inspect.
+    use frame_support::traits::fungible::Inspect;
     fn owner()->AccountId32{AccountId32::new([3u8;32])}
     #[test]
     fn dvn_v2_deposit_exact_base_unit_native_accounting_no_mint(){
@@ -152,6 +157,70 @@ mod dvn_v2_native_escrow_internal_tests{
             assert!(DvnV2EscrowReceipt::<Test>::get(0).is_none());
             assert_eq!(Balances::balance(&vault),before);
             assert_eq!(Balances::total_issuance(),issuance);
+        });
+    }
+    #[test]
+    fn dvn_v2_deposit_independent_recipients_and_exact_receipt_order(){
+        let sender=account_id(1);
+        let vault=Wormhole::devnira_v2_custody_escrow_account();
+        new_test_ext_with_endowments(vec![
+            (sender.clone(),1000*UNIT),(vault.clone(),10*UNIT)
+        ]).execute_with(||{
+            let another=AccountId32::new([4u8;32]);
+            let issuance=Balances::total_issuance();
+            let vault_start=Balances::balance(&vault);
+            let sender_start=Balances::balance(&sender);
+            assert_eq!(Wormhole::devnira_v2_record_native_escrow_internal(
+                &sender,&owner(),11),Ok(0));
+            assert_eq!(Wormhole::devnira_v2_record_native_escrow_internal(
+                &sender,&another,5),Ok(1));
+            assert_eq!(Wormhole::devnira_v2_record_native_escrow_internal(
+                &sender,&owner(),7),Ok(2));
+            assert_eq!(DvnV2EscrowRecipientCount::<Test>::get([3u8;32]),2);
+            assert_eq!(DvnV2EscrowRecipientCount::<Test>::get([4u8;32]),1);
+            assert_eq!(DvnV2EscrowReceipt::<Test>::get(0),Some(([3u8;32],0,11)));
+            assert_eq!(DvnV2EscrowReceipt::<Test>::get(1),Some(([4u8;32],0,5)));
+            assert_eq!(DvnV2EscrowReceipt::<Test>::get(2),Some(([3u8;32],1,7)));
+            assert_eq!(DvnV2EscrowNextReceipt::<Test>::get(),3);
+            assert_eq!(DvnV2EscrowTotal::<Test>::get(),23);
+            assert_eq!(Balances::balance(&vault),vault_start+23);
+            assert_eq!(Balances::balance(&sender),sender_start-23);
+            assert_eq!(Balances::total_issuance(),issuance);
+            assert_eq!(ZkTree::leaf_count(),0);
+        });
+    }
+    #[test]
+    fn dvn_v2_deposit_underbacked_vault_and_reused_receipt_fail_atomically(){
+        let sender=account_id(1);
+        let vault=Wormhole::devnira_v2_custody_escrow_account();
+        new_test_ext_with_endowments(vec![
+            (sender.clone(),1000*UNIT),(vault.clone(),10*UNIT)
+        ]).execute_with(||{
+            let before_sender=Balances::balance(&sender);
+            let before_vault=Balances::balance(&vault);
+            let issuance=Balances::total_issuance();
+            // Simulate pre-existing inconsistent liabilities. The transfer
+            // MUST roll back when it cannot restore full vault solvency.
+            DvnV2EscrowTotal::<Test>::put(before_vault+1);
+            assert!(Wormhole::devnira_v2_record_native_escrow_internal(
+                &sender,&owner(),1).is_err());
+            assert_eq!(Balances::balance(&sender),before_sender);
+            assert_eq!(Balances::balance(&vault),before_vault);
+            assert_eq!(DvnV2EscrowNextReceipt::<Test>::get(),0);
+            assert!(DvnV2EscrowReceipt::<Test>::get(0).is_none());
+            DvnV2EscrowTotal::<Test>::kill();
+            // A corrupted receipt cursor must NOT overwrite an existing
+            // commitment or withdraw more than the original deposit.
+            DvnV2EscrowReceipt::<Test>::insert(0,([4u8;32],9,2));
+            assert!(Wormhole::devnira_v2_record_native_escrow_internal(
+                &sender,&owner(),1).is_err());
+            assert_eq!(DvnV2EscrowReceipt::<Test>::get(0),Some(([4u8;32],9,2)));
+            assert_eq!(DvnV2EscrowTotal::<Test>::get(),0);
+            assert_eq!(DvnV2EscrowNextReceipt::<Test>::get(),0);
+            assert_eq!(Balances::balance(&sender),before_sender);
+            assert_eq!(Balances::balance(&vault),before_vault);
+            assert_eq!(Balances::total_issuance(),issuance);
+            assert_eq!(ZkTree::leaf_count(),0);
         });
     }
 }
