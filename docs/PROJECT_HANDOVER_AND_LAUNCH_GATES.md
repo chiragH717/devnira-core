@@ -1,5 +1,16 @@
 # DEVNIRA (DVN) — Full Project Handover and Launch Blockers
-**Status as of 2026-10-15 — mainnet NOT live, Stage 2 NOT complete.**
+**Status as of 2026-10-16 — mainnet NOT live, Stage 2 NOT complete.**
+
+## Latest live repository reconciliation
+
+- `main`: `bf407bc38774d11950e4d4bb0c6dec79b204ccdf`; PRs #1–#26 all merged, #27 open. The uploaded handover at #24 is older than live GitHub.
+- Main CI: reference `38781357681`, development `38781357413`, real proof-to-FRAME/native-WASM `38781356982`, authenticated recursive integration `38781356941`: all SUCCESS when inspected on 2026-10-16.
+- #24 completed authenticated full depth16 22PI research proof. #25/#26 completed fixed-key recursion and real serialized proof-byte verification in FRAME, plus inert native/WASM builds. Do not redo them as new work.
+- #27 continuation `0f79d6ff670cddd6b51df4756b801b608c9657fb`: genuine leaf → PRIVATE → PUBLIC two-tier proof now PASS. The previous 264/263 panic was in a foreign-proof negative test outside its rejection handler, not failed genuine nested verification. See `STAGE2_PRIVATE_PUBLIC_RECURSION_BLOCKER_2026-10-15.md` for corrected evidence.
+- New integrated run: https://github.com/chiragH717/devnira-core/actions/runs/38851923003 . Native prover and downstream FRAME proof-byte/atomic escrow test steps SUCCESS; native node + embedded-WASM release build SUCCESS (2026-10-16 05:23:58 UTC). All 8 FRAME integration tests passed and the complete run is SUCCESS. Escrow is `cfg(test)`, so the WASM build does not exercise settlement.
+- Uploaded original asset ZIP: all 20 manifest SHA256 entries verified; no visual asset or website change.
+
+Older milestone descriptions below describe their own PR's historical scope, not the latest proof capability. Production acceptance remains 0/10 verified launch gates, not 0% source work.
 
 ## Instructions for the next ChatGPT chat
 The user speaks Gujarati; respond in Gujarati. Apply real GitHub source changes and inspect CI before calling a module complete. Do not give repeated planning and never confuse green candidate tests with a working global wallet or deployed network. Repo: https://github.com/chiragH717/devnira-core . Re-check fresh main HEAD, open PRs and Actions as this snapshot will age.
@@ -41,9 +52,9 @@ The original user-provided 13.zip + DESIGN_LOCK.txt contain FINAL transparent DE
 - No Android app; GPU source candidates only (no actual Nvidia/AMD GPU work verified); pool offline share ledger; explorer now supports REAL local persisted **raw finalized SQLite blocks** with hash/parent chain integrity, but no decoded wallet addresses. Public RPC, website production hosting and external security audit absent.
 
 ## Production blockers — ALL REQUIRED
-1. Extend the **successfully proved one-level 22-PI secret/nullifier/Merkle/header research** into full 4-ary depth, production dynamic fee-rate rules and public header-root authentication against a real historical DVN on-chain block. Current test-only script is NOT a production verifier.
+1. Reuse the successful full-depth16 22PI secret/nullifier/Merkle/header proof. Integrate production fee policy, domain binding and finalized independent chain history with exact 8-decimal deposit commitments. No more redundant one-level/depth16 prototypes.
 2. Pinned full private/public recursive prover/aggregator and actual compatible on-chain V2 verifier keys/artifacts; active V1 4.3.0 proof path removed safely.
-3. Atomic valid V2 settlement, persisted UsedNullifiers before mint, bounded issuance and exact miner rewards, invalid/replay/root/proof tests.
+3. Activate reviewed, bounded and weighted V2 settlement backed by actual deposits, persistent UsedNullifiers and atomic balances/fees. Test-only pre-funded escrow is insufficient; never mint merely because a development proof verifies.
 4. Actual independently launched 8-decimal spendable native/WASM runtime with real transfer signing. Current 8-decimal build is intentionally inert.
 5. Genuine company-owned SS58-190 PUBLIC address + signed ownership proof and approved genesis time; exactly 3M liquid + 7M vesting and 90M mining; resolve vesting-pot existential-deposit conflict without minting extra coins; prove real genesis state/hash and network independence.
 6. Audited Windows/Android encrypted/local custody, recovery and signed nonce/fee/SCALE extrinsics; verified production artifacts.

@@ -1,0 +1,25 @@
+{
+  "schema": "devnira-v2-development-verifier-fingerprint-v1",
+  "classification": "DEVELOPMENT-ONLY: not an approved production verifier key",
+  "circuit_pin": "fa5f57dc1a1b755ff1b7f4fdb4309e1e06669ba2",
+  "chain_pin": "482c5b9e02bec0adc70797eade0a67f60baf2619",
+  "rust_version": "1.93.0",
+  "public_inputs": {
+    "private": 24,
+    "public": 50
+  },
+  "sha256": {
+    "private-v2-24pi-vk.bin": "559d8dbbb045ae9a8afdb01fd12c552aca51e88ca89b8ef90f61e2b44c7929f8",
+    "private-v2-24pi-common.bin": "2077aeef0cea813aa393a5ef6926fc09f1481378f95bf7514270342c8c77d31b",
+    "public-v2-50pi-vk.bin": "7029e733370b52d7f0549a8e097062257c3da8c0a031f39af8b9113ec06ae564",
+    "public-v2-50pi-common.bin": "d1e8df0c83a346063e34c4b2de12b1959c47051c06fe51598ccbb64e0db12e16"
+  },
+  "evidence": {
+    "initial_verified_run": "https://github.com/chiragH717/devnira-core/actions/runs/38851923003",
+    "independent_same_fingerprints_run": "https://github.com/chiragH717/devnira-core/actions/runs/38855705000"
+  },
+  "production_vk_approved": false,
+  "runtime_vk_embedded": false,
+  "deposit_backing_verified": false,
+  "release_allowed": false
+}
