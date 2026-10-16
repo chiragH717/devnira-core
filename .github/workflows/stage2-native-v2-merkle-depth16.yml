@@ -1,0 +1,62 @@
+name: DEVNIRA independent depth16 V2 custody Merkle and block-end roots (NO HEADER / SEND)
+on:
+  pull_request:
+    paths:
+      - scripts/patch_zk_v2_custody_merkle_depth16.py
+      - tests/test_zk_v2_custody_merkle_depth16.py
+      - .github/workflows/stage2-native-v2-merkle-depth16.yml
+      - config/upstream-pins.json
+      - scripts/patch_zk_tree_native_v2.py
+      - scripts/patch_zk_v2_native_custody_ledger.py
+      - scripts/patch_zk_v2_custody_commitment.py
+  push:
+    branches: [main]
+    paths:
+      - scripts/patch_zk_v2_custody_merkle_depth16.py
+      - tests/test_zk_v2_custody_merkle_depth16.py
+      - .github/workflows/stage2-native-v2-merkle-depth16.yml
+      - config/upstream-pins.json
+      - scripts/patch_zk_tree_native_v2.py
+      - scripts/patch_zk_v2_native_custody_ledger.py
+      - scripts/patch_zk_v2_custody_commitment.py
+permissions:
+  contents: read
+jobs:
+  native-frame-v2-merkle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate exact source composition anchors
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_zk_v2_custody_merkle_depth16.py' -v
+      - name: Fetch immutable pinned FRAME source and compose V2 tree
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/Quantus-Network/chain.git upstream
+          PIN=$(python3 -c 'import json;print(json.load(open("config/upstream-pins.json"))["upstream_chain"]["sha"])')
+          git -C upstream fetch --depth 1 origin "$PIN"
+          git -C upstream checkout --detach "$PIN"
+          test "$(git -C upstream rev-parse HEAD)" = "$PIN"
+          python3 scripts/patch_zk_tree_native_v2.py upstream
+          python3 scripts/patch_zk_v2_native_custody_ledger.py upstream
+          python3 scripts/patch_zk_v2_custody_commitment.py upstream
+          python3 scripts/patch_zk_v2_custody_merkle_depth16.py upstream
+          git -C upstream diff --stat
+      - name: Rust compiler and FRAME dependencies
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.93.0 --profile minimal
+          sudo apt-get update
+          sudo apt-get install -y clang libclang-dev llvm-dev libssl-dev pkg-config protobuf-compiler libprotobuf-dev cmake build-essential
+          echo "LIBCLANG_PATH=$(llvm-config --libdir)" >> "$GITHUB_ENV"
+      - name: Actual FRAME native atomic deposit independent tree current witness and snapshot tests
+        working-directory: upstream
+        run: |
+          set -euo pipefail
+          cargo +1.93.0 test --locked -p pallet-wormhole --lib dvn_v2_deposit_ -- --nocapture
+      - name: Deny production claims
+        run: |
+          echo "Real V2 custody-backed depth16 Poseidon Merkle state + current root witnesses; only development FRAME tests." >> "$GITHUB_STEP_SUMMARY"
+          echo "Block-end snapshots are not authenticated finalized header history; no signed deposit, active verifier, production settlement, WASM execution or SEND." >> "$GITHUB_STEP_SUMMARY"
