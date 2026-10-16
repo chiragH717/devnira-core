@@ -8,12 +8,12 @@ live infrastructure verification. The default command is report-only.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 from pathlib import Path
 import re
 
 from scripts.release_evidence_gate import REQUIRED
+from spec.ss58_company_account import InvalidCompanyAddress, verified_company_public_address
 from scripts.verify_signed_release_evidence import (
     EvidenceRejected, _read_verified, verify,
 )
@@ -130,6 +130,11 @@ def _genesis_policy(root: Path) -> tuple[bool, list[str]]:
     address = company.get("public_address")
     if not isinstance(address, str) or not address.strip():
         errors.append("Owner-verified public treasury address still absent")
+    else:
+        try:
+            verified_company_public_address(address)
+        except InvalidCompanyAddress:
+            errors.append("Treasury public address is not valid DEVNIRA SS58-190")
     stamp = proposal.get("genesis_timestamp_ms")
     if type(stamp) is not int or stamp <= 0:
         errors.append("Owner-approved UTC Genesis time still absent")
