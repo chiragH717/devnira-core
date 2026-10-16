@@ -7,6 +7,10 @@ class HeaderBridgeTests(unittest.TestCase):
         temp=tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         self.root=Path(temp.name)
+        system=self.root/"pallets/frame-system/src"
+        system.mkdir(parents=True)
+        self.sy=system/"lib.rs"
+        self.sy.write_text("\tpub(super) type ZkTreeRoot<T: Config> = StorageValue<_, T::Hash, ValueQuery>;\n")
         a=self.root/"pallets/zk-tree/src"
         b=self.root/"pallets/wormhole/src"
         a.mkdir(parents=True);b.mkdir(parents=True)
@@ -35,10 +39,11 @@ class HeaderBridgeTests(unittest.TestCase):
         z=self.zk.read_text()
         w=self.wh.read_text()
         t=self.ts.read_text()
-        for needle in [MARKER,"DvnV2HeaderMode::<T>::get()","DvnV2HeaderRootCandidate::<T>::take()",
+        self.assertIn(MARKER,self.sy.read_text())
+        for needle in ["frame_system::DvnV2HeaderMode::<T>::get()","frame_system::DvnV2HeaderRootCandidate::<T>::take()",
                        "LeafCount::<T>::get()==0"]:
             self.assertIn(needle,z)
-        self.assertIn("DvnV2HeaderRootCandidate::<T>::put(root)",w)
+        self.assertIn("frame_system::DvnV2HeaderRootCandidate::<T>::put(root)",w)
         self.assertIn("DvnV2TreeHistory::<T>::insert(",w)
         self.assertIn("dvn_v2_deposit_header_bridge_optin_sets_actual_frame_system_root",t)
         self.assertIn("dvn_v2_deposit_header_bridge_remains_disabled_by_default",t)
@@ -49,9 +54,9 @@ class HeaderBridgeTests(unittest.TestCase):
                       (self.ts,"DEVNIRA_V2_NATIVE_ESCROW_CUSTODY_NATIVE_FRAME_TESTS")]:
             orig=f.read_text()
             f.write_text(orig.replace(key,"DRIFT"))
-            snap=tuple(p.read_text() for p in (self.zk,self.wh,self.ts))
+            snap=tuple(p.read_text() for p in (self.sy,self.zk,self.wh,self.ts))
             with self.assertRaisesRegex(ValueError,"STOP"):patch(self.root)
-            self.assertEqual(snap,tuple(p.read_text() for p in (self.zk,self.wh,self.ts)))
+            self.assertEqual(snap,tuple(p.read_text() for p in (self.sy,self.zk,self.wh,self.ts)))
             f.write_text(orig)
 if __name__=="__main__":
     unittest.main()
