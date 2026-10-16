@@ -30,7 +30,7 @@ PUBLISH_NEW='''            // DEVNIRA V2 header bridge (opt-in only): selection 
                     && UnprocessedLeaves::<T>::get()==0,
                     "STOP: legacy V1 leaves exist in V2-only header mode");
                 DvnV2HeaderRootCandidate::<T>::take().expect(
-                    "STOP: missing per-block V2 custody header root");
+                    "STOP: missing per-block V2 custody header root")
             }else{
                 assert!(DvnV2HeaderRootCandidate::<T>::get().is_none(),
                     "STOP: V2 root submitted while consensus mode disabled");
