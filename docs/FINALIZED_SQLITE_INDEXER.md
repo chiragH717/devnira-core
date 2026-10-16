@@ -34,3 +34,25 @@ as good as the independently pinned chain and trusted local node.
 Our inert research chain is NOT a live mainnet, company genesis is absent,
 so do not publish it as a network explorer yet. Gold/blue coin/website
 design remains unchanged.
+
+
+## Finalized raw extrinsic search (development only)
+
+The SQLite index now stores Substrate BlakeTwo256 (BLAKE2b-256) hashes
+over the **exact RPC-returned encoded SCALE extrinsic bytes**. Look up
+a finalized raw hash through /api/index/extrinsic/0x<64-hex-hash>.
+The API returns one or more immutable finalized block heights, ordinal
+positions and raw SCALE payloads; identical unsigned extrinsics can
+occur at different positions and must not be deduplicated by hash.
+
+**Backward compatibility**: first back up your local private SQLite file,
+then rerun the indexer with the exact same independently pinned genesis.
+The old v1 raw index migrates to v2 atomically and backfills hashes from
+existing finalized blocks without rewriting their chain hashes. Invalid
+legacy raw data aborts migration and leaves the prior schema intact.
+A read-only explorer will not serve raw extrinsic queries before migration.
+
+These are NOT decoded transactions: this index neither resolves addresses
+nor proves execution success, runtime call identity, fees or transfers.
+It remains localhost-only, tied to a trusted pinned-genesis dev node,
+and is NOT a deployed public mainnet block explorer.
