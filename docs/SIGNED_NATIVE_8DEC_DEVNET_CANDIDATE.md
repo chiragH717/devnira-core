@@ -1,0 +1,9 @@
+# Independent 8-decimal native-signing TESTNET candidate — NOT MAINNET
+
+This development-only opt-in patch runs after existing upstream network isolation and inert 8-decimal source conversion. It changes the base call filter from only Timestamp/System to Timestamp/System plus ONLY pallet-balances transfer_keep_alive. The inherited V1 Wormhole event-to-12-decimal-leaf recorder is removed from the signed transaction extension, preventing 8-decimal signed transfers from producing misleading V1 proof leaves. CheckGenesis, CheckNonce, dynamic fees and metadata-hash checks remain.
+
+The fork gets a distinct DEV-only identity, does not accept the old Quantus production network, and never activates V1 Wormhole signed proof exits. DEV-chain balances may be signed with temporary development keys only. Do not put production funds or treasury keys into a dev genesis.
+
+The GitHub Action compiles a true native node embedding matching WASM and checks the isolated 8-decimal chain metadata. It DOES NOT submit and finalize any signed extrinsic, prove independent two-node sync, prove QPoW mining, or integrate a compatible native V2 private/public verifier and canonical V2 tree/history. It cannot be called a completed spendable ZK blockchain testnet or used to generate company Genesis.
+
+Next real acceptance: two independent nodes with the same explicitly test-only genesis, two temporary owner-controlled dev keys, correctly signed Dilithium nonce/era/metadata/fee SCALE extrinsics, actual finalized balance debit/credit with restart/reorg/replay tests, and active domain-bound ZK V2 withdrawal after independent review. Global wallet implementation is out of scope of this development-only candidate.
