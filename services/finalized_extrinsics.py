@@ -90,7 +90,7 @@ def lookup_extrinsic(db_path: Path, digest: str, *, limit: int=25) -> dict | Non
         out=[]
         for height,ordinal,raw,block_hash in matches[:limit]:
             if hash_extrinsic(raw)!=digest.lower():
-                raise ExtrinsicRejected('Corrupt extrinsic hash lookup')
+                raise ExtrinsicRejected('Corrupt extrinsic hash lookup integrity violation')
             validate_checkpoint(db,height)
             out.append({'height':height,'ordinal':ordinal,'block_hash':block_hash,
                         'raw_scale_hex':raw,'finality_confirmed':True,'decoded':False})
