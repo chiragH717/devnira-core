@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 from scripts.release_evidence_gate import REQUIRED
+from spec.ss58_company_account import encode_ss58_account
 from scripts.six_gate_release_snapshot import CRITICAL_REPORTS, SIX_GATES, requirement_ids, snapshot, markdown
 REV = "f" * 40
 class SixGateSnapshotTests(unittest.TestCase):
@@ -50,6 +51,15 @@ class SixGateSnapshotTests(unittest.TestCase):
         report=snapshot(self.root,REV)
         self.assertFalse(report["signed_release_evidence_admitted"])
         self.assertTrue(any("Signed production evidence rejected" in x for x in report["blocking_conditions"]))
+    def test_fake_non_ss58_company_address_is_rejected(self):
+        p=self.root/"config/genesis-proposal.json"
+        data=json.loads(p.read_text())
+        data["company_treasury"]["public_address"]="INVALID-ADDRESS"
+        data["genesis_timestamp_ms"]=2000000000000
+        p.write_text(json.dumps(data))
+        report=snapshot(self.root,REV)
+        self.assertFalse(report["genesis_policy_inputs_complete"])
+        self.assertIn("Treasury public address is not valid DEVNIRA SS58-190",report["blocking_conditions"])
     def test_genesis_economic_drift_blocks(self):
         p=self.root/"config/genesis-proposal.json"
         data=json.loads(p.read_text())
@@ -63,7 +73,7 @@ class SixGateSnapshotTests(unittest.TestCase):
     def make_synthetic_reports(self):
         proposal=self.root/"config/genesis-proposal.json"
         value=json.loads(proposal.read_text())
-        value["company_treasury"]["public_address"]="TEST_FIXTURE_NOT_A_REAL_ADDRESS"
+        value["company_treasury"]["public_address"]=encode_ss58_account(bytes([9])*32)
         value["genesis_timestamp_ms"]=2000000000000
         proposal.write_text(json.dumps(value))
         folder=self.root/"evidence/production"
