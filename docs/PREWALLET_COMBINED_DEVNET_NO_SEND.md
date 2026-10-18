@@ -1,0 +1,9 @@
+# DEVNIRA combined pre-wallet native 8-decimal devnet (NOT MAINNET)
+
+Rather than re-run PR #33/34/35 isolated tests, this **single** GitHub Action verifies the NEW post-merge interaction boundary: it composes eight source patches from the same immutable upstream chain in one checkout, builds one true native node with embedded WASM, proves dev-only chain spec identity and rejects inherited Quantus mainnet spec. Produces a SHA256 manifest for the compiled source files. This remains an opt-in development check, not a launch approval.
+
+Sequence: foreign-network guard -> isolated inert 8-decimal identity -> narrow native balances-only signed call filter and no inherited 12-decimal proof recorder -> native V2 Poseidon leaf -> internal actual native custody escrow -> exact receipt hash -> independent 4-ary depth16 Merkle state -> default-disabled V2 header-root selector.
+
+It intentionally leaves PR #34 development recursive proof and escrow code under cfg(test) and does not incorporate unapproved public verifier keys into the active runtime. Compiling this node does not prove that signed transactions have been submitted or finalized, that two nodes reach independent consensus, or that the V2 root/history and atomic withdrawals are secure in production. No real funds, company genesis, production keys, wallets or miners.
+
+Next genuine tests before global wallets: isolated two-node network with test-only signed Dilithium transaction inclusion and finality; exact base-unit balance/fee/nonce handling, restart/reorg/replay tests; approved fixed VK and real custody-backed atomic ZK settlement against authenticated finalized header histories in native and WASM. This must then pass external review and the existing six-gate production audit.

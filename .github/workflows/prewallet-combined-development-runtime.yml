@@ -1,0 +1,78 @@
+name: DEVNIRA single combined pre-wallet native/WASM DEV integration (NO ZK SEND)
+on:
+  pull_request:
+    paths:
+      - scripts/compose_stage2_prewallet_devnet.py
+      - tests/test_compose_stage2_prewallet_devnet.py
+      - .github/workflows/prewallet-combined-development-runtime.yml
+      - config/upstream-pins.json
+  push:
+    branches: [main]
+    paths:
+      - scripts/compose_stage2_prewallet_devnet.py
+      - tests/test_compose_stage2_prewallet_devnet.py
+      - .github/workflows/prewallet-combined-development-runtime.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  combined-native-wasm-once:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: New cross-component regression tests ONLY; do not repeat isolated suites
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_compose_stage2_prewallet_devnet.py' -v
+      - name: Check out exact pinned FRAME chain and compose all eight stages ONCE
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/Quantus-Network/chain.git upstream
+          PIN=$(python3 -c 'import json;print(json.load(open("config/upstream-pins.json"))["upstream_chain"]["sha"])')
+          git -C upstream fetch --depth 1 origin "$PIN"
+          git -C upstream checkout --detach "$PIN"
+          test "$(git -C upstream rev-parse HEAD)" = "$PIN"
+          python3 -m scripts.compose_stage2_prewallet_devnet upstream --report prewallet-devnet-assembly.json
+      - name: Pin Rust and native plus embedded WASM dependencies
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.93.0 --profile minimal
+          rustup target add wasm32v1-none --toolchain 1.93.0
+          sudo apt-get update
+          sudo apt-get install -y clang libclang-dev llvm-dev libssl-dev pkg-config protobuf-compiler libprotobuf-dev cmake build-essential
+          echo "LIBCLANG_PATH=$(llvm-config --libdir)" >> "$GITHUB_ENV"
+      - name: Compile real COMBINED native DEV node with embedded WASM once
+        working-directory: upstream
+        run: |
+          set -euo pipefail
+          cargo +1.93.0 build --locked --release -p quantus-node
+      - name: Assert DEV 8 decimals and foreign-spec rejection
+        run: |
+          set -euo pipefail
+          upstream/target/release/quantus-node build-spec --chain dev --disable-default-bootnode > prewallet-devnet-spec.json
+          python3 - <<'PY'
+          import json
+          j=json.load(open("prewallet-devnet-spec.json"))
+          assert j["id"]=="devnira-8dec-native-dev-test"
+          assert j["properties"]["tokenDecimals"]==8
+          assert j["properties"]["tokenSymbol"]=="DVN"
+          assert j["properties"]["ss58Format"]==190
+          print("DEV source integration verified. No live signed transfer or approved VK.")
+          PY
+          if upstream/target/release/quantus-node build-spec --chain mainnet --disable-default-bootnode >/dev/null 2>&1; then
+            echo "SECURITY FAILURE: foreign Quantus mainnet accepted"
+            exit 1
+          fi
+      - name: Archive digests/spec ONLY, no unreviewed release binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: DVN-COMBINED-PREWALLET-DEV-SOURCE-NO-MAINNET
+          path: |
+            prewallet-devnet-assembly.json
+            prewallet-devnet-spec.json
+          if-no-files-found: error
+      - name: Declare production restrictions
+        run: |
+          echo "Combined DEVELOPMENT native/WASM binary test only. NOT a signed finalized testnet or spendable ZK chain." >> "$GITHUB_STEP_SUMMARY"
+          echo "Requires independent header-history, real two-node signed transfer, approved VK/custody settlement, genesis, GPU hardware, audit, wallets." >> "$GITHUB_STEP_SUMMARY"
