@@ -1,0 +1,75 @@
+name: DEVNIRA 8-decimal native-only signed transfer testnet candidate (NOT ZK V2 / MAINNET)
+on:
+  pull_request:
+    paths:
+      - scripts/patch_signed_8decimal_native_testnet.py
+      - tests/test_signed_8decimal_native_testnet.py
+      - .github/workflows/devnet-signed-native-8decimal-build.yml
+      - config/upstream-pins.json
+  push:
+    branches: [main]
+    paths:
+      - scripts/patch_signed_8decimal_native_testnet.py
+      - tests/test_signed_8decimal_native_testnet.py
+      - .github/workflows/devnet-signed-native-8decimal-build.yml
+permissions:
+  contents: read
+jobs:
+  native-wasm-devnet-no-v2-spend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fail closed on any expanded call filter or inherited V1 proof recorder
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_signed_8decimal_native_testnet.py' -v
+      - name: Fetch immutable isolated DEV source and stage signed native-only runtime
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/Quantus-Network/chain.git upstream
+          PIN=$(python3 -c 'import json;print(json.load(open("config/upstream-pins.json"))["upstream_chain"]["sha"])')
+          git -C upstream fetch --depth 1 origin "$PIN"
+          git -C upstream checkout --detach "$PIN"
+          test "$(git -C upstream rev-parse HEAD)" = "$PIN"
+          python3 scripts/guard_dvn_network_identity.py upstream
+          python3 scripts/patch_isolated_dvn_8decimal_runtime.py upstream
+          python3 scripts/patch_signed_8decimal_native_testnet.py upstream
+          ! grep -q 'WormholeProofRecorderExtension<Runtime>' upstream/runtime/src/lib.rs
+          grep -q 'pub const UNIT: Balance = 100_000_000;' upstream/runtime/src/lib.rs
+      - name: Pin Rust 1.93 and prepare real native plus embedded WASM
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.93.0 --profile minimal
+          rustup target add wasm32v1-none --toolchain 1.93.0
+          sudo apt-get update
+          sudo apt-get install -y clang libclang-dev llvm-dev libssl-dev pkg-config protobuf-compiler libprotobuf-dev cmake build-essential
+          echo "LIBCLANG_PATH=$(llvm-config --libdir)" >> "$GITHUB_ENV"
+      - name: Build actual native DEV node embedding matching WASM runtime
+        working-directory: upstream
+        run: |
+          set -euo pipefail
+          cargo +1.93.0 build --locked --release -p quantus-node
+      - name: Isolated DEV chain identity and economics visible in chain spec
+        run: |
+          set -euo pipefail
+          upstream/target/release/quantus-node build-spec --chain dev --disable-default-bootnode > native-devnet.json
+          python3 - <<'PY'
+          import json
+          j=json.load(open("native-devnet.json"))
+          assert j["id"]=="devnira-8dec-native-dev-test"
+          assert j["properties"]["tokenDecimals"]==8
+          assert j["properties"]["tokenSymbol"]=="DVN"
+          assert j["properties"]["ss58Format"]==190
+          print("8-decimal native-signed DEV chain candidate only. Not proof of signed transfer roundtrip.")
+          PY
+      - name: Archive spec only, never promote unsigned testnet node as release
+        uses: actions/upload-artifact@v4
+        with:
+          name: DEVNIRA-8DEC-NATIVE-SIGNED-DEV-CANDIDATE-NO-PRODUCTION-V2
+          path: native-devnet.json
+          if-no-files-found: error
+      - name: Fail closed on mainnet and proof claims
+        run: |
+          echo "Native-only signed transfer call availability and source build are NOT signed testnet transaction finalization or live network evidence." >> "$GITHUB_STEP_SUMMARY"
+          echo "No real ZK V2 active, company Genesis, signed Send wallet, finalized withdrawal or mainnet." >> "$GITHUB_STEP_SUMMARY"
