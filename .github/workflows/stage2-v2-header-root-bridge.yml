@@ -1,0 +1,55 @@
+name: DEVNIRA native V2 header bridge (NO ACTIVE SEND)
+on:
+  pull_request:
+    paths:
+      - scripts/patch_zk_v2_header_root_bridge.py
+      - tests/test_zk_v2_header_root_bridge.py
+      - .github/workflows/stage2-v2-header-root-bridge.yml
+      - config/upstream-pins.json
+  push:
+    branches: [main]
+    paths:
+      - scripts/patch_zk_v2_header_root_bridge.py
+      - tests/test_zk_v2_header_root_bridge.py
+      - .github/workflows/stage2-v2-header-root-bridge.yml
+permissions:
+  contents: read
+jobs:
+  real-frame-header:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify exact source composition and fail-closed negative cases
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_zk_v2_header_root_bridge.py' -v
+      - name: Fetch exact pinned FRAME source and integrate previous custody stages
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/Quantus-Network/chain.git upstream
+          PIN=$(python3 -c 'import json;print(json.load(open("config/upstream-pins.json"))["upstream_chain"]["sha"])')
+          git -C upstream fetch --depth 1 origin "$PIN"
+          git -C upstream checkout --detach "$PIN"
+          test "$(git -C upstream rev-parse HEAD)" = "$PIN"
+          python3 scripts/patch_zk_tree_native_v2.py upstream
+          python3 scripts/patch_zk_v2_native_custody_ledger.py upstream
+          python3 scripts/patch_zk_v2_custody_commitment.py upstream
+          python3 scripts/patch_zk_v2_custody_merkle_depth16.py upstream
+          python3 scripts/patch_zk_v2_header_root_bridge.py upstream
+      - name: Pin Rust 1.93 native build toolchain and dependencies
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.93.0 --profile minimal
+          sudo apt-get update
+          sudo apt-get install -y clang libclang-dev llvm-dev libssl-dev pkg-config protobuf-compiler libprotobuf-dev cmake build-essential
+          echo "LIBCLANG_PATH=$(llvm-config --libdir)" >> "$GITHUB_ENV"
+      - name: Execute actual FRAME native V2 header and custody invariants
+        working-directory: upstream
+        run: |
+          set -euo pipefail
+          cargo +1.93.0 test --locked -p pallet-wormhole --lib dvn_v2_deposit_ -- --nocapture
+      - name: Confirm NO proof of mainnet finality or active wallet Send
+        run: |
+          echo "Default V2 header selector DISABLED. Real native FRAME mock source/tests only." >> "$GITHUB_STEP_SUMMARY"
+          echo "Not a live finalized header history, signed spendable 8-decimal runtime, or active production V2 verifier." >> "$GITHUB_STEP_SUMMARY"
