@@ -10,6 +10,7 @@ import argparse
 import json
 from pathlib import Path
 import re
+import subprocess
 import sys
 import tempfile
 import time
@@ -63,6 +64,19 @@ def assess_pair(left:dict,right:dict,hash_left:str,hash_right:str,
             raise PeerFailure("Equal-height finalized tips disagree")
     return {"height":n,"hash":hash_left.lower(),"genesis":genesis.lower(),
             "header":lh,"zk_root":lh["zkTreeRoot"]}
+
+def restart_existing(exe:Path,base:Path,boot:str):
+    """Restart using original on-disk state, never call first-start mkdir()."""
+    if not base.is_dir() or base.is_symlink():
+        raise PeerFailure("Cannot restart without existing real node database directory")
+    argv=[str(exe),"--base-path",str(base),"--port","31542",
+          "--no-telemetry","--experimental-rpc-endpoint",
+          "listen-addr=127.0.0.1:19542,methods=unsafe,cors=all",
+          "--chain","dev","--bootnodes",boot]
+    # Append instead of truncating node logs; preserve first-run evidence.
+    with (base/"node.log").open("ab") as log:
+        return subprocess.Popen(argv,stdout=log,stderr=subprocess.STDOUT,
+                                stdin=subprocess.DEVNULL)
 
 def identity(url:str,expected_genesis:str|None=None)->str:
     chain=rpc(url,"system_chain")
@@ -129,7 +143,7 @@ def run(binary:Path,timeout:int=270)->dict:
             first=wait_common(ua,ub,a,b,genesis,deadline)
             # Stop second actual process; preserve its REAL database. Rejoin.
             stop(b);b=None
-            b=start(exe,root/"node_b",31542,19542,boot=address(peer))
+            b=restart_existing(exe,root/"node_b",address(peer))
             await_identity(b,ub,deadline,genesis)
             second=wait_common(ua,ub,a,b,genesis,deadline)
             if second["height"]<first["height"]:
