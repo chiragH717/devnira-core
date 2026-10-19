@@ -1,0 +1,69 @@
+name: DEVNIRA actual 2-node DEV finality and restart (NO SEND)
+on:
+  pull_request:
+    paths:
+      - scripts/dvn_prewallet_two_node_finality.py
+      - tests/test_dvn_prewallet_two_node_finality.py
+      - .github/workflows/prewallet-real-two-node-finality.yml
+      - scripts/compose_stage2_prewallet_devnet.py
+  push:
+    branches: [main]
+    paths:
+      - scripts/dvn_prewallet_two_node_finality.py
+      - tests/test_dvn_prewallet_two_node_finality.py
+      - .github/workflows/prewallet-real-two-node-finality.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  actual-dev-native-p2p-finality-restart:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: New negative checks for forged genesis/finality/header/identity only
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_dvn_prewallet_two_node_finality.py' -v
+      - name: Compose pinned integrated 8-decimal DEV runtime ONCE
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/Quantus-Network/chain.git upstream
+          PIN=$(python3 -c 'import json;print(json.load(open("config/upstream-pins.json"))["upstream_chain"]["sha"])')
+          git -C upstream fetch --depth 1 origin "$PIN"
+          git -C upstream checkout --detach "$PIN"
+          test "$(git -C upstream rev-parse HEAD)" = "$PIN"
+          python3 -m scripts.compose_stage2_prewallet_devnet upstream --report prewallet-combined-sources.json
+      - name: Pinned Rust and native with embedded WASM prerequisites
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.93.0 --profile minimal
+          rustup target add wasm32v1-none --toolchain 1.93.0
+          sudo apt-get update
+          sudo apt-get install -y clang libclang-dev llvm-dev libssl-dev pkg-config protobuf-compiler libprotobuf-dev cmake build-essential
+          echo "LIBCLANG_PATH=$(llvm-config --libdir)" >> "$GITHUB_ENV"
+      - name: Build actual native development binary with embedded WASM
+        working-directory: upstream
+        run: |
+          set -euo pipefail
+          cargo +1.93.0 build --locked --release -p quantus-node
+      - name: Launch TWO real nodes; authenticate post-genesis finalized header/root and restart
+        run: |
+          set -euo pipefail
+          python3 scripts/dvn_prewallet_two_node_finality.py \
+            --node upstream/target/release/quantus-node \
+            --timeout 300 --json prewallet-actual-two-node-report.json
+      - name: Save dev-only source digests and independent node observations
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dvn-actual-two-native-finality-restart-DEV-ONLY
+          path: |
+            prewallet-combined-sources.json
+            prewallet-actual-two-node-report.json
+          if-no-files-found: error
+      - name: Non-production limitation
+        if: always()
+        run: |
+          echo "Real LOCAL DEV P2P and header finality test. NOT public consensus, real signed Send or production ZK settlement." >> "$GITHUB_STEP_SUMMARY"
+          echo "No physical GPU QPoW, approved VK, independent treasury Genesis, global wallet or audited mainnet." >> "$GITHUB_STEP_SUMMARY"
