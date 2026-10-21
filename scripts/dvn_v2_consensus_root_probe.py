@@ -9,10 +9,10 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from scripts.test_two_node_rpc import rpc,snapshot
+from scripts.test_two_node_rpc import rpc
 from scripts.dvn_finalized_history_check import inspect,compare_pair,HistoryFailure
 from scripts.dvn_signed_transfer_acceptance import hash32,network_guard
-from wallet.network_identity import validate_local_rpc
+from wallet.network_identity import validate_local_rpc,validate_identity
 
 MASK=(1<<64)-1
 P1=11400714785074694791
@@ -108,14 +108,33 @@ def root_in_finalized_state(url:str,block_hash:str,height:int,transport=rpc)->di
             "leaf_count":count,"header_v2_mode_active":True,
             "block_end_snapshot_matches":True}
 
+def finalized_snapshot(url:str,genesis:str,transport=rpc)->dict:
+    chain=transport(url,"system_chain")
+    version=transport(url,"state_getRuntimeVersion")
+    actual=transport(url,"chain_getBlockHash",[0])
+    validate_identity(chain,version,actual,genesis)
+    head=hash32(transport(url,"chain_getFinalizedHead"),"finalized peer head")
+    header=transport(url,"chain_getHeader",[head])
+    if not isinstance(header,dict) or not isinstance(header.get("number"),str):
+        raise V2RootRejected("Missing finalized peer header")
+    try:n=int(header["number"],16)
+    except ValueError as exc:raise V2RootRejected("Malformed finalized peer height") from exc
+    if n<1 or hash32(transport(url,"chain_getBlockHash",[n]))!=head:
+        raise V2RootRejected("Finalized peer head is not canonical post-genesis")
+    peers=transport(url,"system_peers")
+    if not isinstance(peers,list) or not peers:
+        raise V2RootRejected("No live connected P2P peer for V2 root history")
+    return {"genesis":hash32(actual),"finalized_height":n,
+            "finalized_hash":head,"peer_count":len(peers)}
+
 def inspect_pair(a:str,b:str,genesis:str,height:int,*,depth:int=8,transport=rpc)->dict:
     if a==b:raise V2RootRejected("Two distinct peers required")
     # Mere RPC block existence is NOT finalized consensus evidence.
     # Bind the supplied trusted DEV genesis, runtime/8 decimals and peers
     # to both actual endpoints BEFORE touching custody storage.
     network_guard(a,b,genesis,transport)
-    before_a=snapshot(a,genesis)
-    before_b=snapshot(b,genesis)
+    before_a=finalized_snapshot(a,genesis,transport)
+    before_b=finalized_snapshot(b,genesis,transport)
     if min(before_a["finalized_height"],before_b["finalized_height"])<height:
         raise V2RootRejected("Requested V2 root height was NOT finalized by both peers")
     pa=inspect(a,genesis,height,depth=depth,transport=transport)
@@ -133,8 +152,8 @@ def inspect_pair(a:str,b:str,genesis:str,height:int,*,depth:int=8,transport=rpc)
         last_count=x["leaf_count"]
         lines.append(x)
     # Protect against one RPC silently switching canonical data during read.
-    after_a=snapshot(a,genesis)
-    after_b=snapshot(b,genesis)
+    after_a=finalized_snapshot(a,genesis,transport)
+    after_b=finalized_snapshot(b,genesis,transport)
     if (min(after_a["finalized_height"],after_b["finalized_height"])<height
         or min(after_a["finalized_height"],after_b["finalized_height"])<
            min(before_a["finalized_height"],before_b["finalized_height"])
