@@ -1,0 +1,42 @@
+name: DEVNIRA signed-native transfer acceptance contract (BLOCKED pending real extrinsic)
+on:
+  pull_request:
+    paths:
+      - scripts/dvn_signed_transfer_acceptance.py
+      - tests/test_dvn_signed_transfer_acceptance.py
+      - .github/workflows/devnet-signed-transfer-acceptance.yml
+      - docs/DEVNET_SIGNED_EXTRINSIC_ACCEPTANCE.md
+      - spec/ss58_company_account.py
+  push:
+    branches: [main]
+    paths:
+      - scripts/dvn_signed_transfer_acceptance.py
+      - tests/test_dvn_signed_transfer_acceptance.py
+      - .github/workflows/devnet-signed-transfer-acceptance.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  strict-acceptance-regression-no-signed-transfer-claim:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: New SCALE, SS58, exact balances, nonce, fee, issuance, two-peer and replay tests
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_dvn_signed_transfer_acceptance.py' -v
+      - name: Explicitly report that no real signer or transaction evidence exists
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import pathlib
+          f=pathlib.Path("evidence/devnet/real-signed-transfer-acceptance.json")
+          if f.exists():
+              raise SystemExit("Never accept an unverified JSON claim in the repo as a signed transfer")
+          print("EXPECTED BLOCKED: no externally signed real DEV extrinsic finalized and checked by both peers.")
+          PY
+      - name: Never mislabel green contract tests as proof of spendable blockchain
+        run: |
+          echo "GREEN = ONLY unit acceptance logic. No real signed Send/Receive, keys or active ZK V2." >> "$GITHUB_STEP_SUMMARY"
+          echo "Real test requires a separate DEV-only Dilithium signer and two live independent local nodes." >> "$GITHUB_STEP_SUMMARY"
