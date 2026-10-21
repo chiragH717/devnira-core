@@ -93,6 +93,20 @@ def build_intent(*,node_a:str,node_b:str,trusted_genesis:str,
             "spec_version":version["specVersion"],
             "transaction_version":version["transactionVersion"],
             "metadata_hash_blake2b256":metadata_hash,"state":state})
+    # Re-read BOTH pinned canonical anchors + metadata after collecting state.
+    # A finalized history fork or rolling runtime upgrade during the probe
+    # must invalidate a signing intent BEFORE it leaves this process.
+    for url,observed in zip((node_a,node_b),observations):
+        if hash32(transport(url,"chain_getBlockHash",[observed["height"]]))!=observed["head"]:
+            raise SigningIntentRejected("Finalized signing anchor changed during intent collection")
+        if checked_metadata(transport(url,"state_getMetadata"))!=observed["metadata_hash_blake2b256"]:
+            raise SigningIntentRejected("Runtime metadata changed during signing intent collection")
+        after=transport(url,"state_getRuntimeVersion")
+        if (not isinstance(after,dict)
+            or after.get("specVersion")!=observed["spec_version"]
+            or after.get("transactionVersion")!=observed["transaction_version"]
+            or after.get("specName")!=RUNTIME_SPEC):
+            raise SigningIntentRejected("Runtime version changed during signing intent collection")
     a,b=observations
     if a!=b:
         raise SigningIntentRejected("Two finalized nodes disagree on head, metadata, nonce or balances")
