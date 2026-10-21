@@ -76,7 +76,7 @@ def _chain_hash(rpc, height):
         raise IndexRejected("Missing canonical finalized block hash")
     return value.lower()
 
-def index_finalized_batch(rpc: GuardedRpc, db_path: Path, *, limit: int = 100) -> dict:
+def index_finalized_batch(rpc: GuardedRpc, db_path: Path, *, limit: int = 100, peer_rpc: GuardedRpc | None = None) -> dict:
     if type(limit) is not int or not 1 <= limit <= 1000:
         raise IndexRejected("Batch size outside bounded safe range")
     status = rpc.finalized_status()  # Calls GuardedRpc.verify_identity
@@ -87,6 +87,14 @@ def index_finalized_batch(rpc: GuardedRpc, db_path: Path, *, limit: int = 100) -
         raise IndexRejected("Malformed independent finalized-chain identity")
     if not _same(genesis, rpc.identity.genesis_hash):
         raise IndexRejected("RPC genesis differs from independently pinned chain")
+    if peer_rpc is not None:
+        if peer_rpc.identity.rpc_url == rpc.identity.rpc_url:
+            raise IndexRejected("Independent explorer peer must use a different RPC")
+        peer_status=peer_rpc.finalized_status()
+        if (not _same(peer_status.get("genesis_hash"),genesis)
+            or peer_status.get("finalized_height",-1)<height
+            or not _same(_chain_hash(peer_rpc,height),head)):
+            raise IndexRejected("Second peer did not confirm primary finalized tip")
     # Even if a malicious/buggy RPC reports a matching genesis in its status,
     # re-check height zero against the canonical block-hash database method.
     # A mocked client's untruthful identity must not bypass this invariant.
@@ -121,6 +129,15 @@ def index_finalized_batch(rpc: GuardedRpc, db_path: Path, *, limit: int = 100) -
                 raise IndexRejected("Missing or malformed parent hash")
             if expected_parent is not None and not _same(parent,expected_parent):
                 raise IndexRejected("Broken finalized block parent linkage")
+            if peer_rpc is not None:
+                peer_block=peer_rpc.block_at_height(number)
+                if (not _same(_chain_hash(peer_rpc,number),expected_hash)
+                    or not isinstance(peer_block,dict)
+                    or not _same(peer_block.get("hash"),expected_hash)
+                    or peer_block.get("height")!=number
+                    or peer_block.get("header")!=header
+                    or peer_block.get("extrinsics_hex")!=extrinsics):
+                    raise IndexRejected("Two independent finalized peers disagree on header/root/body")
             canonical_raw=[canonical(v) for v in extrinsics]
             rows.append((number,expected_hash,parent.lower(),json.dumps(canonical_raw,separators=(",",":"))))
             expected_parent=expected_hash
@@ -134,6 +151,13 @@ def index_finalized_batch(rpc: GuardedRpc, db_path: Path, *, limit: int = 100) -
             raise IndexRejected("Initial finalized header changed before commit")
         if rows and not _same(_chain_hash(rpc,rows[-1][0]),rows[-1][1]):
             raise IndexRejected("Last block changed before atomic commit")
+        if peer_rpc is not None:
+            peer_after=peer_rpc.finalized_status()
+            if (not _same(peer_after.get("genesis_hash"),genesis)
+                or peer_after.get("finalized_height",-1)<height
+                or not _same(_chain_hash(peer_rpc,height),head)
+                or (rows and not _same(_chain_hash(peer_rpc,rows[-1][0]),rows[-1][1]))):
+                raise IndexRejected("Second peer finality changed before atomic commit")
         # Single atomic DB transaction: never write partially checked history.
         with db:
             if _last(db)!=last:
@@ -147,6 +171,7 @@ def index_finalized_batch(rpc: GuardedRpc, db_path: Path, *, limit: int = 100) -
                 "indexed_this_batch":len(rows),
                 "indexed_through":rows[-1][0] if rows else (last[0] if last else None),
                 "observed_finalized_height":height,
+                "two_peer_finality_confirmed":peer_rpc is not None,
                 "transactions_decoded":False,"gpu_verified":False,
                 "mainnet_ready":False}
     finally:
@@ -199,8 +224,10 @@ def main():
     ap.add_argument("--trusted-genesis",required=True)
     ap.add_argument("--db",type=Path,required=True,help="Local private SQLite path, outside public webroot")
     ap.add_argument("--batch",type=int,default=100)
+    ap.add_argument("--confirm-rpc",default=None,help="Second independent local finalized DEV node")
     args=ap.parse_args()
-    report=index_finalized_batch(GuardedRpc(NodeIdentity(args.rpc,args.trusted_genesis)),args.db,limit=args.batch)
+    peer=GuardedRpc(NodeIdentity(args.confirm_rpc,args.trusted_genesis)) if args.confirm_rpc else None
+    report=index_finalized_batch(GuardedRpc(NodeIdentity(args.rpc,args.trusted_genesis)),args.db,limit=args.batch,peer_rpc=peer)
     print(json.dumps(report,sort_keys=True))
 if __name__=="__main__":
     main()
