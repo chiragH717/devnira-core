@@ -5,17 +5,37 @@ import os
 import subprocess
 import sys
 
-REQUIRED=("DVN_TRUSTED_DEV_GENESIS","DVN_TEST_FROM_SS58",
+REQUIRED=("DVN_TRUSTED_DEV_GENESIS","DVN_INTENT_FILE",
+"DVN_SIGNER_CLAIM_FILE","DVN_SIGNED_DEV_EXTRINSIC",
+"DVN_V2_FINALIZED_HEIGHT","DVN_PRODUCTION_REVISION")
+PREPARE_REQUIRED=("DVN_TRUSTED_DEV_GENESIS","DVN_TEST_FROM_SS58",
 "DVN_TEST_TO_SS58","DVN_TEST_AMOUNT_UNITS","DVN_DEV_MAX_FEE_UNITS",
-"DVN_SIGNED_DEV_EXTRINSIC","DVN_V2_FINALIZED_HEIGHT",
-"DVN_PRODUCTION_REVISION")
+"DVN_INTENT_FILE")
 def invoke(args):
     print("FINAL integration:",args[0],args[1],flush=True)
     subprocess.run(args,check=True)
 def main():
     p=argparse.ArgumentParser(description="One MANUAL run only, blocked by missing real evidence")
-    p.add_argument("--run",action="store_true",help="Explicit authorization to execute final tests")
+    mode=p.add_mutually_exclusive_group()
+    mode.add_argument("--prepare-intent",action="store_true",
+       help="Create UNSIGNED transaction request for separate secure DEV signer, no transfers")
+    mode.add_argument("--run",action="store_true",
+       help="Explicitly execute final tests with an externally signed DEV file")
     x=p.parse_args()
+    if x.prepare_intent:
+        missing=[name for name in PREPARE_REQUIRED if not os.environ.get(name)]
+        if missing:
+            p.exit(2,"STOP missing public-only intent inputs: "+", ".join(missing)+"\n")
+        e=os.environ
+        invoke([sys.executable,"-m","scripts.dvn_unsigned_dev_signing_intent",
+            "--trusted-genesis",e["DVN_TRUSTED_DEV_GENESIS"],
+            "--from-public",e["DVN_TEST_FROM_SS58"],
+            "--to-public",e["DVN_TEST_TO_SS58"],
+            "--amount-units",e["DVN_TEST_AMOUNT_UNITS"],
+            "--max-fee-units",e["DVN_DEV_MAX_FEE_UNITS"],
+            "--json-out",e["DVN_INTENT_FILE"]])
+        print("PREPARATION ONLY. Intent requires independent disposable DEV signer.")
+        return
     missing=[name for name in REQUIRED if not os.environ.get(name)]
     if not x.run:
         print("STAGED — NOT RUN. Required public-only environment:",", ".join(REQUIRED))
@@ -26,23 +46,16 @@ def main():
     py=sys.executable;e=os.environ
     invoke([py,"-m","unittest","discover","-s","tests",
             "-p","test_final_batch_new_boundaries.py","-v"])
-    invoke([py,"-m","scripts.dvn_unsigned_dev_signing_intent",
-            "--trusted-genesis",e["DVN_TRUSTED_DEV_GENESIS"],
-            "--from-public",e["DVN_TEST_FROM_SS58"],
-            "--to-public",e["DVN_TEST_TO_SS58"],
-            "--amount-units",e["DVN_TEST_AMOUNT_UNITS"],
-            "--max-fee-units",e["DVN_DEV_MAX_FEE_UNITS"],
-            "--json-out","/tmp/dvn-unsigned-intent.json"])
+    invoke([py,"-m","unittest","discover","-s","tests",
+            "-p","test_dvn_bound_signed_transfer.py","-v"])
     invoke([py,"-m","scripts.dvn_v2_consensus_root_probe",
             "--trusted-genesis",e["DVN_TRUSTED_DEV_GENESIS"],
             "--height",e["DVN_V2_FINALIZED_HEIGHT"],
             "--json-out","/tmp/dvn-v2-header-root-proof.json"])
-    invoke([py,"-m","scripts.dvn_signed_transfer_acceptance",
-            "--trusted-genesis",e["DVN_TRUSTED_DEV_GENESIS"],
-            "--from-public",e["DVN_TEST_FROM_SS58"],
-            "--to-public",e["DVN_TEST_TO_SS58"],
-            "--amount-units",e["DVN_TEST_AMOUNT_UNITS"],
-            "--signed-extrinsic-file",e["DVN_SIGNED_DEV_EXTRINSIC"],
+    invoke([py,"-m","scripts.dvn_bound_signed_transfer",
+            "--intent-file",e["DVN_INTENT_FILE"],
+            "--claim-file",e["DVN_SIGNER_CLAIM_FILE"],
+            "--signed-file",e["DVN_SIGNED_DEV_EXTRINSIC"],
             "--json-out","/tmp/dvn-real-dev-transfer.json"])
     invoke([py,"-m","scripts.dvn_physical_gpu_probe",
             "--require-nvidia","--require-amd",
