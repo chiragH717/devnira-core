@@ -9,9 +9,9 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from scripts.test_two_node_rpc import rpc
+from scripts.test_two_node_rpc import rpc,snapshot
 from scripts.dvn_finalized_history_check import inspect,compare_pair,HistoryFailure
-from scripts.dvn_signed_transfer_acceptance import hash32
+from scripts.dvn_signed_transfer_acceptance import hash32,network_guard
 from wallet.network_identity import validate_local_rpc
 
 MASK=(1<<64)-1
@@ -110,6 +110,14 @@ def root_in_finalized_state(url:str,block_hash:str,height:int,transport=rpc)->di
 
 def inspect_pair(a:str,b:str,genesis:str,height:int,*,depth:int=8,transport=rpc)->dict:
     if a==b:raise V2RootRejected("Two distinct peers required")
+    # Mere RPC block existence is NOT finalized consensus evidence.
+    # Bind the supplied trusted DEV genesis, runtime/8 decimals and peers
+    # to both actual endpoints BEFORE touching custody storage.
+    network_guard(a,b,genesis,transport)
+    before_a=snapshot(a,genesis)
+    before_b=snapshot(b,genesis)
+    if min(before_a["finalized_height"],before_b["finalized_height"])<height:
+        raise V2RootRejected("Requested V2 root height was NOT finalized by both peers")
     pa=inspect(a,genesis,height,depth=depth,transport=transport)
     pb=inspect(b,genesis,height,depth=depth,transport=transport)
     try:compare_pair(pa,pb)
@@ -124,6 +132,15 @@ def inspect_pair(a:str,b:str,genesis:str,height:int,*,depth:int=8,transport=rpc)
             raise V2RootRejected("V2 custody leaf count regressed in finalized history")
         last_count=x["leaf_count"]
         lines.append(x)
+    # Protect against one RPC silently switching canonical data during read.
+    after_a=snapshot(a,genesis)
+    after_b=snapshot(b,genesis)
+    if (min(after_a["finalized_height"],after_b["finalized_height"])<height
+        or min(after_a["finalized_height"],after_b["finalized_height"])<
+           min(before_a["finalized_height"],before_b["finalized_height"])
+        or hash32(transport(a,"chain_getBlockHash",[height]))!=pa["records"][str(height)]["hash"]
+        or hash32(transport(b,"chain_getBlockHash",[height]))!=pb["records"][str(height)]["hash"]):
+        raise V2RootRejected("DEV finalized V2 ancestry changed during evidence capture")
     return {"schema":"devnira-v2-actual-header-custody-root-audit-v1",
             "network":"LOCAL DEV ONLY; must NOT use current default-disabled chain",
             "roots_derived_from_REAL_finalized_wormhole_storage":True,
