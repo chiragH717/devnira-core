@@ -18,7 +18,7 @@ class GpuHardwareMissing(ValueError):pass
 VENDORS={"0x10de":"NVIDIA","0x1002":"AMD"}
 REQUIRED_DRIVER={"NVIDIA":("nvidia",),"AMD":("amdgpu",)}
 MAX_DEVICES=32
-NAME=re.compile(r"[A-Za-z0-9_.+-]{1,64}\Z")
+NAME=re.compile(r"[A-Za-z0-9_.:+-]{1,64}\Z")
 
 def scan(root:Path=Path("/sys/class/drm"))->dict:
     if root.is_symlink() or not root.is_dir():
