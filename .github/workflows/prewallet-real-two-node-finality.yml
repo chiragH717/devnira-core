@@ -3,14 +3,16 @@ on:
   pull_request:
     paths:
       - scripts/dvn_prewallet_two_node_finality.py
-      - tests/test_dvn_prewallet_two_node_finality.py
+      - scripts/dvn_finalized_history_check.py
+      - tests/test_dvn_finalized_history_check.py
       - .github/workflows/prewallet-real-two-node-finality.yml
       - scripts/compose_stage2_prewallet_devnet.py
   push:
     branches: [main]
     paths:
       - scripts/dvn_prewallet_two_node_finality.py
-      - tests/test_dvn_prewallet_two_node_finality.py
+      - scripts/dvn_finalized_history_check.py
+      - tests/test_dvn_finalized_history_check.py
       - .github/workflows/prewallet-real-two-node-finality.yml
   workflow_dispatch:
 permissions:
@@ -21,10 +23,10 @@ jobs:
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
-      - name: New negative checks for forged genesis/finality/header/identity only
+      - name: New ancestry safety and restart anti-tamper tests (no isolated proof repeats)
         run: |
           set -euo pipefail
-          python3 -m unittest discover -s tests -p 'test_dvn_prewallet_two_node_finality.py' -v
+          python3 -m unittest discover -s tests -p 'test_dvn_finalized_history_check.py' -v
       - name: Compose pinned integrated 8-decimal DEV runtime ONCE
         run: |
           set -euo pipefail
@@ -47,7 +49,7 @@ jobs:
         run: |
           set -euo pipefail
           cargo +1.93.0 build --locked --release -p quantus-node
-      - name: Launch TWO real nodes; authenticate post-genesis finalized header/root and restart
+      - name: Launch TWO real nodes, authenticate complete canonical ancestry and restart history
         run: |
           set -euo pipefail
           python3 scripts/dvn_prewallet_two_node_finality.py \

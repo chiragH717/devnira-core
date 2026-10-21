@@ -18,6 +18,7 @@ import time
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from scripts.dvn_two_native_processes import start,stop,address,PeerFailure
 from scripts.test_two_node_rpc import rpc, snapshot
+from scripts.dvn_finalized_history_check import paired_rpc_audit,compare_restart
 from wallet.network_identity import validate_identity
 
 HEX32=re.compile(r"0x[0-9a-fA-F]{64}\Z")
@@ -141,6 +142,7 @@ def run(binary:Path,timeout:int=270)->dict:
             b=start(exe,root/"node_b",31542,19542,boot=address(peer))
             await_identity(b,ub,deadline,genesis)
             first=wait_common(ua,ub,a,b,genesis,deadline)
+            before_history=paired_rpc_audit(ua,ub,genesis,first["height"])
             # Stop second actual process; preserve its REAL database. Rejoin.
             stop(b);b=None
             b=restart_existing(exe,root/"node_b",address(peer))
@@ -154,8 +156,10 @@ def run(binary:Path,timeout:int=270)->dict:
             h=checked_header(rpc(ub,"chain_getHeader",[stable]),first["height"])
             if h!=first["header"]:
                 raise PeerFailure("Restart altered previously finalized V2 header-root preimage")
+            after_history=paired_rpc_audit(ua,ub,genesis,first["height"])
+            persisted=compare_restart(before_history["history"],after_history["history"])
             return {
-                "schema":"devnira-real-prewallet-devnet-finality-and-restart-v1",
+                "schema":"devnira-real-prewallet-devnet-finalized-ancestry-v2",
                 "classification":"ISOLATED DEVELOPMENT: NOT PRODUCTION OR SIGNED SEND",
                 "actual_native_processes":2,"bidirectional_p2p":True,
                 "actual_non_genesis_finalized_header_consistent":True,
@@ -163,6 +167,10 @@ def run(binary:Path,timeout:int=270)->dict:
                 "node_2_restart_with_same_database_verified":True,
                 "shared_dev_genesis":genesis,
                 "first_finalized":first,"after_restart":second,
+                "historical_ancestry_cross_node":before_history["summary"],
+                "persisted_history_after_node_restart":persisted,
+                "v2_header_mode_active":False,
+                "full_production_v2_witness_history_verified":False,
                 "signed_extrinsic_submitted":False,
                 "gpu_qpow_validated":False,"active_zk_v2":False,
                 "production_fixed_vk_approved":False,
@@ -188,6 +196,6 @@ def main():
     result=run(a.node,a.timeout)
     a.json.parent.mkdir(parents=True,exist_ok=True)
     a.json.write_text(json.dumps(result,indent=2,sort_keys=True)+"\n",encoding="utf-8")
-    print("PASS: real DEV nodes, post-genesis finalized header, common zkTreeRoot and restart (NOT SEND)")
+    print("PASS: actual DEV nodes, canonical history and zk header roots after restart (NO ACTIVE V2/SEND)")
 if __name__=="__main__":
     main()
