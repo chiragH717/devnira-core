@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:devnira/app.dart';
 import 'package:devnira/store.dart';
+import 'package:devnira/models.dart';
 
 Future<void> tick(WidgetTester t) async {
   await t.pump();
@@ -25,7 +26,7 @@ void main() {
       addTearDown(t.view.resetPhysicalSize);
       addTearDown(t.view.resetDevicePixelRatio);
       final s = AppStore(live: false);
-      await s.load();
+      await t.runAsync(s.load);
       await t.pumpWidget(DevniraApp(store: s));
       await tick(t);
       expect(find.text('Recent Rounds'), findsOneWidget);
@@ -56,11 +57,9 @@ void main() {
       s.dispose();
     },
   );
-  testWidgets('admin validates editing and persists catalog for player', (
-    t,
-  ) async {
+  testWidgets('admin rejects invalid equipment values', (t) async {
     final s = AppStore(live: false);
-    await s.load();
+    await t.runAsync(s.load);
     await t.pumpWidget(DevniraApp(admin: true, store: s));
     await tick(t);
     await t.tap(find.text('Add new equipment'));
@@ -75,6 +74,33 @@ void main() {
     await tick(t);
     await t.pumpWidget(const SizedBox());
     s.dispose();
+  });
+  test('admin catalog and switch state persist across store reload', () async {
+    final s = AppStore(live: false);
+    await s.load();
+    final original = s.catalog.first;
+    await s.saveDevice(
+      Device.fromJson({
+        ...original.toJson(),
+        'virtualSpeed': 999,
+        'pricePaise': 123400,
+      }),
+    );
+    final gen = s.fleet.firstWhere((o) => o.id == 'demo-g1');
+    await s.toggle(gen, false);
+    final next = AppStore(live: false);
+    await next.load();
+    expect(
+      next.catalog.firstWhere((d) => d.id == original.id).virtualSpeed,
+      999,
+    );
+    expect(
+      next.catalog.firstWhere((d) => d.id == original.id).pricePaise,
+      123400,
+    );
+    expect(next.power.speed, 0);
+    s.dispose();
+    next.dispose();
   });
   test('all catalog IDs are unique and records valid', () async {
     final j = jsonDecode(await rootBundle.loadString('assets/catalog.json'));

@@ -56,9 +56,9 @@ class AppStore extends ChangeNotifier {
 
   Future<void> _loadDemo() async {
     _prefs = await SharedPreferences.getInstance();
-    final bundled = jsonDecode(
-      await rootBundle.loadString('assets/catalog.json'),
-    ) as Map<String, dynamic>;
+    final bundled =
+        jsonDecode(await rootBundle.loadString('assets/catalog.json'))
+            as Map<String, dynamic>;
     final stored = _prefs!.getString('devnira_demo_catalog_v2');
     try {
       catalog =
@@ -126,7 +126,9 @@ class AppStore extends ChangeNotifier {
     await FirebaseAppCheck.instance.activate(
       androidProvider: AndroidProvider.playIntegrity,
       webProvider: kIsWeb
-          ? ReCaptchaV3Provider(const String.fromEnvironment('RECAPTCHA_SITE_KEY'))
+          ? ReCaptchaV3Provider(
+              const String.fromEnvironment('RECAPTCHA_SITE_KEY'),
+            )
           : null,
     );
     FirebaseFirestore.instance.settings = const Settings(
@@ -231,8 +233,9 @@ class AppStore extends ChangeNotifier {
 
   Future<void> toggle(OwnedDevice owned, bool enabled) async {
     if (live) {
-      if (!online || !signedIn)
+      if (!online || !signedIn) {
         throw StateError('Sign in and reconnect first.');
+      }
       await functions.httpsCallable('toggleEquipment').call({
         'equipmentId': owned.id,
         'enabled': enabled,
@@ -252,8 +255,9 @@ class AppStore extends ChangeNotifier {
   Future<void> saveDevice(Device device) async {
     Device.fromJson(device.toJson());
     if (live) {
-      if (!online || !admin)
+      if (!online || !admin) {
         throw StateError('Administrator access and internet required.');
+      }
       await functions.httpsCallable('saveCatalogDevice').call(device.toJson());
     } else {
       catalog = [...catalog.where((x) => x.id != device.id), device];
@@ -275,10 +279,11 @@ class AppStore extends ChangeNotifier {
     String password, {
     bool create = false,
   }) async {
-    if (!live)
+    if (!live) {
       throw StateError(
         'Demo mode. Authentication is available in a configured Live build.',
       );
+    }
     if (create) {
       await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: email,
@@ -293,10 +298,11 @@ class AppStore extends ChangeNotifier {
   }
 
   Future<void> googleAuth() async {
-    if (!live)
+    if (!live) {
       throw StateError(
         'Demo mode. Google login needs your Firebase project configuration.',
       );
+    }
     if (kIsWeb) {
       await FirebaseAuth.instance.signInWithPopup(GoogleAuthProvider());
       return;
@@ -318,10 +324,11 @@ class AppStore extends ChangeNotifier {
   }
 
   Future<void> resetPassword(String email) async {
-    if (!live)
+    if (!live) {
       throw StateError(
         'Demo mode. Password reset needs Firebase configuration.',
       );
+    }
     await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
   }
 
@@ -332,10 +339,11 @@ class AppStore extends ChangeNotifier {
   }
 
   Future<void> purchase(Device device) async {
-    if (!live)
+    if (!live) {
       throw StateError(
         'Demo build: no money is charged and no purchase is made.',
       );
+    }
     if (!signedIn) throw StateError('Sign in to continue.');
     await functions.httpsCallable('createOrder').call({'catalogId': device.id});
     // This release deliberately has no enabled payment provider. The server rejects

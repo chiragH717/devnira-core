@@ -33,7 +33,7 @@ class _DevniraAppState extends State<DevniraApp> {
   void initState() {
     super.initState();
     store = widget.store ?? AppStore();
-    store.load();
+    if (!store.ready) store.load();
   }
 
   @override
@@ -103,9 +103,11 @@ class _ShellState extends State<Shell> {
   String query = '', family = 'All';
   AppStore get s => widget.store;
   void notice(String message) {
-    if (mounted)
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(message)));
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    }
   }
 
   Future<void> act(Future<void> Function() action) async {
@@ -149,7 +151,7 @@ class _ShellState extends State<Shell> {
 
   @override
   Widget build(BuildContext context) {
-    if (s.error != null && !s.ready)
+    if (s.error != null && !s.ready) {
       return Scaffold(
         body: Center(
           child: Padding(
@@ -170,9 +172,11 @@ class _ShellState extends State<Shell> {
           ),
         ),
       );
-    if (!s.ready)
+    }
+    if (!s.ready) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    if (widget.admin && s.live && !s.admin)
+    }
+    if (widget.admin && s.live && !s.admin) {
       return Scaffold(
         appBar: AppBar(title: const Text('DEVNIRA ADMIN')),
         body: ListView(
@@ -205,6 +209,7 @@ class _ShellState extends State<Shell> {
           ],
         ),
       );
+    }
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 18,
@@ -1177,8 +1182,9 @@ class _ShellState extends State<Shell> {
               onPressed: busy
                   ? null
                   : () async {
-                      if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
-                          .hasMatch(email.text.trim())) {
+                      if (!RegExp(
+                        r'^[^\s@]+@[^\s@]+\.[^\s@]+$',
+                      ).hasMatch(email.text.trim())) {
                         change(() => error = 'Enter a valid email.');
                         return;
                       }
@@ -1201,12 +1207,13 @@ class _ShellState extends State<Shell> {
                           );
                         }
                         if (ctx.mounted) Navigator.pop(ctx);
-                        if (reset)
+                        if (reset) {
                           notice(
                             'If this account exists, a reset email has been sent.',
                           );
+                        }
                       } catch (e) {
-                        if (ctx.mounted)
+                        if (ctx.mounted) {
                           change(() {
                             busy = false;
                             error = e.toString().replaceFirst(
@@ -1214,6 +1221,7 @@ class _ShellState extends State<Shell> {
                               '',
                             );
                           });
+                        }
                       }
                     },
               child: Text(
@@ -1483,7 +1491,8 @@ class _ShellState extends State<Shell> {
                           p <= 0 ||
                           p > 10000000) {
                         change(
-                          () => error = 'Enter a name, family and positive numeric values.',
+                          () => error =
+                              'Enter a name, family and positive numeric values.',
                         );
                         return;
                       }
@@ -1509,11 +1518,12 @@ class _ShellState extends State<Shell> {
                           'Equipment saved${s.live ? '' : ' in demo catalog'}.',
                         );
                       } catch (e) {
-                        if (ctx.mounted)
+                        if (ctx.mounted) {
                           change(() {
                             busy = false;
                             error = e.toString();
                           });
+                        }
                       }
                     },
               child: Text(busy ? 'Saving…' : 'Save'),
@@ -1533,8 +1543,9 @@ class _ShellState extends State<Shell> {
       notice('No valid explorer URL configured.');
       return;
     }
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication))
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       notice('Unable to open explorer.');
+    }
   }
 }
 
