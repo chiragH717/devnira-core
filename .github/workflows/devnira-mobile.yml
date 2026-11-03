@@ -6,6 +6,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: devnira-mobile-${{ github.ref }}
   cancel-in-progress: true
@@ -70,10 +71,19 @@ jobs:
       - run: flutter pub get
       - name: Build installable demo APK
         run: flutter build apk --release --flavor ${{ matrix.role }} --target ${{ matrix.target }} --dart-define=LIVE=false
+      - name: Verify Android signatures and ZIP alignment
+        run: |
+          sdk_build_tools=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1 | xargs dirname)
+          "$sdk_build_tools/apksigner" verify --verbose --print-certs build/app/outputs/flutter-apk/app-${{ matrix.role }}-release.apk | tee signing.txt
+          grep -q 'Verified using v1 scheme (JAR signing): true' signing.txt
+          grep -q 'Verified using v2 scheme (APK Signature Scheme v2): true' signing.txt
+          grep -q 'Verified using v3 scheme (APK Signature Scheme v3): true' signing.txt
+          "$sdk_build_tools/zipalign" -c -P 16 4 build/app/outputs/flutter-apk/app-${{ matrix.role }}-release.apk
       - name: Package explicit demo identity and checksums
         run: |
           mkdir -p dist
           cp build/app/outputs/flutter-apk/app-${{ matrix.role }}-release.apk dist/${{ matrix.name }}.apk
+          cp signing.txt dist/SIGNING-VERIFICATION.txt
           printf '%s\n' 'DEMO build. Debug signing certificate. Sample balances. No live payments, blockchain, or configured authentication.' > dist/BUILD-STATUS.txt
           sha256sum dist/*.apk > dist/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
@@ -82,3 +92,51 @@ jobs:
           path: apps/devnira/dist/
           if-no-files-found: error
           retention-days: 30
+  install:
+    needs: apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [29, 35]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: Devnira-*-Demo
+          path: install-apks
+      - name: Download original APKs for installation comparison
+        uses: actions/download-artifact@v4
+        with:
+          pattern: Devnira-*-Demo
+          run-id: 41565533940
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: baseline-apks
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install and launch both apps on Android
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          arch: x86_64
+          target: google_apis
+          cores: 2
+          ram-size: 2048M
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: bash apps/devnira/tool/android_install_smoke.sh
+      - name: Preserve install and launch evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Devnira-Install-Evidence-API-${{ matrix.api }}
+          path: install-evidence/
+          if-no-files-found: error

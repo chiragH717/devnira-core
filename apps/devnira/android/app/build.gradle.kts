@@ -14,7 +14,7 @@ android {
     kotlinOptions { jvmTarget = "17" }
     defaultConfig {
         applicationId = "com.devnira.app"
-        minSdk = 23
+        minSdk = 24
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -31,6 +31,18 @@ android {
             applicationId = "com.devnira.admin"
             manifestPlaceholders["appLabel"] = "Devnira Admin Demo"
         }
+    }
+    signingConfigs {
+        getByName("debug") {
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = true
+        }
+    }
+    // Extract compressed native libraries instead of relying on direct APK mmap.
+    // This also accommodates vendor package installers with stricter ZIP handling.
+    packaging {
+        jniLibs { useLegacyPackaging = true }
     }
     buildTypes {
         release { signingConfig = signingConfigs.getByName("debug") }
