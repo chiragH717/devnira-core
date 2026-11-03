@@ -1,0 +1,9 @@
+{
+  "name": "devnira-backend",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "engines": {"node": "20"},
+  "scripts": {"test": "node --test test/*.test.js", "seed": "node seed.js"},
+  "dependencies": {"firebase-admin": "^13.4.0", "firebase-functions": "^6.4.0"}
+}

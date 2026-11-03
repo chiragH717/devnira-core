@@ -1,0 +1,16 @@
+.dart_tool/
+.flutter-plugins*
+.idea/
+build/
+node_modules/
+android/.gradle/
+android/local.properties
+android/key.properties
+android/gradlew
+android/gradlew.bat
+android/gradle/wrapper/gradle-wrapper.jar
+*.jks
+*.keystore
+*.iml
+.env*
+!config.example.json
