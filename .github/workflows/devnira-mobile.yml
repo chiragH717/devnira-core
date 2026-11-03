@@ -75,7 +75,8 @@ jobs:
         run: |
           sdk_build_tools=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1 | xargs dirname)
           "$sdk_build_tools/apksigner" verify --verbose --print-certs build/app/outputs/flutter-apk/app-${{ matrix.role }}-release.apk | tee signing.txt
-          grep -q 'Verified using v1 scheme (JAR signing): true' signing.txt
+          "$sdk_build_tools/apksigner" verify --verbose --min-sdk-version 23 --max-sdk-version 23 build/app/outputs/flutter-apk/app-${{ matrix.role }}-release.apk | tee signing-v1.txt
+          grep -q 'Verified using v1 scheme (JAR signing): true' signing-v1.txt
           grep -q 'Verified using v2 scheme (APK Signature Scheme v2): true' signing.txt
           grep -q 'Verified using v3 scheme (APK Signature Scheme v3): true' signing.txt
           "$sdk_build_tools/zipalign" -c -P 16 4 build/app/outputs/flutter-apk/app-${{ matrix.role }}-release.apk
@@ -84,6 +85,7 @@ jobs:
           mkdir -p dist
           cp build/app/outputs/flutter-apk/app-${{ matrix.role }}-release.apk dist/${{ matrix.name }}.apk
           cp signing.txt dist/SIGNING-VERIFICATION.txt
+          cp signing-v1.txt dist/SIGNING-V1-VERIFICATION.txt
           printf '%s\n' 'DEMO build. Debug signing certificate. Sample balances. No live payments, blockchain, or configured authentication.' > dist/BUILD-STATUS.txt
           sha256sum dist/*.apk > dist/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
